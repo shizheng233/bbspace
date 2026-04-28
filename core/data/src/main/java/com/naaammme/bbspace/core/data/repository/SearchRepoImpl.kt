@@ -12,9 +12,11 @@ import com.bapis.bilibili.polymer.app.search.v1.Item
 import com.bapis.bilibili.polymer.app.search.v1.SearchAllRequest
 import com.bapis.bilibili.polymer.app.search.v1.SearchAllResponse
 import com.bapis.bilibili.polymer.app.search.v1.Sort
+import com.naaammme.bbspace.core.data.search.SearchHistoryDao
 import com.naaammme.bbspace.core.model.SearchFeedbackItem as SearchFdItem
 import com.naaammme.bbspace.core.model.SearchFeedbackSec
 import com.naaammme.bbspace.core.model.SearchFilter
+import com.naaammme.bbspace.core.model.SearchHistoryOrder
 import com.naaammme.bbspace.core.model.SearchOp
 import com.naaammme.bbspace.core.domain.search.SearchRepository
 import com.naaammme.bbspace.core.model.SearchOrder
@@ -28,10 +30,13 @@ import java.util.Locale
 import java.util.TimeZone
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 @Singleton
 class SearchRepoImpl @Inject constructor(
-    private val grpcClient: BiliGrpcClient
+    private val grpcClient: BiliGrpcClient,
+    private val searchHistoryDao: SearchHistoryDao
 ) : SearchRepository {
 
     override suspend fun search(req: SearchReq): SearchPage {
@@ -71,6 +76,32 @@ class SearchRepoImpl @Inject constructor(
             next = resp.pagination.next,
             filters = resp.searchFilter.filterEntriesList.mapNotNull(::mapFilter)
         )
+    }
+
+    override suspend fun recordHistory(keyword: String) {
+        val query = keyword.trim()
+        if (query.isBlank()) return
+        searchHistoryDao.record(
+            keyword = query,
+            updatedAt = System.currentTimeMillis()
+        )
+    }
+
+    override suspend fun deleteHistory(keyword: String) {
+        val query = keyword.trim()
+        if (query.isBlank()) return
+        searchHistoryDao.deleteByKeyword(query)
+    }
+
+    override fun observeHistory(
+        order: SearchHistoryOrder,
+        limit: Int
+    ): Flow<List<String>> {
+        val source = when (order) {
+            SearchHistoryOrder.TIME -> searchHistoryDao.observeTopKeywordsByTime(limit)
+            SearchHistoryOrder.HOT -> searchHistoryDao.observeTopKeywordsByHot(limit)
+        }
+        return source.map { list -> list.filter { it.isNotBlank() } }
     }
 
     private fun buildPlayerArgs(): PlayerArgs {

@@ -6,6 +6,8 @@ import com.naaammme.bbspace.core.data.download.VideoDownloadDao
 import com.naaammme.bbspace.core.data.download.VideoDownloadDb
 import com.naaammme.bbspace.core.data.history.LocalHistoryDao
 import com.naaammme.bbspace.core.data.history.LocalHistoryDb
+import com.naaammme.bbspace.core.data.search.SearchHistoryDao
+import com.naaammme.bbspace.core.data.search.SearchHistoryDb
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,6 +33,23 @@ object DataDbModule {
 
     @Provides
     fun provideLocalHistoryDao(db: LocalHistoryDb): LocalHistoryDao {
+        return db.dao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideSearchHistoryDb(
+        @ApplicationContext context: Context
+    ): SearchHistoryDb {
+        return Room.databaseBuilder(
+            context,
+            SearchHistoryDb::class.java,
+            "search_history.db"
+        ).build()
+    }
+
+    @Provides
+    fun provideSearchHistoryDao(db: SearchHistoryDb): SearchHistoryDao {
         return db.dao()
     }
 

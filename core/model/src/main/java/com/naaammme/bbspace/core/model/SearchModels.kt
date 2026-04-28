@@ -20,6 +20,11 @@ enum class SearchOrder {
     }
 }
 
+enum class SearchHistoryOrder {
+    TIME,
+    HOT
+}
+
 @Immutable
 data class SearchVideo(
     val aid: Long,

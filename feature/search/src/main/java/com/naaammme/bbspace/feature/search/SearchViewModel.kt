@@ -8,17 +8,22 @@ import androidx.lifecycle.viewModelScope
 import com.naaammme.bbspace.core.common.log.Logger
 import com.naaammme.bbspace.core.domain.search.SearchRepository
 import com.naaammme.bbspace.core.model.SearchFilter
+import com.naaammme.bbspace.core.model.SearchHistoryOrder
 import com.naaammme.bbspace.core.model.SearchOrder
-import com.naaammme.bbspace.core.model.SearchPage
 import com.naaammme.bbspace.core.model.SearchReq
 import com.naaammme.bbspace.core.model.SearchTime
 import com.naaammme.bbspace.core.model.SearchVideo
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val repo: SearchRepository
@@ -57,6 +62,18 @@ class SearchViewModel @Inject constructor(
     private val _videos = MutableStateFlow<List<SearchVideo>>(emptyList())
     val videos = _videos.asStateFlow()
 
+    private val historyOrder = MutableStateFlow(SearchHistoryOrder.TIME)
+    val currentHistoryOrder = historyOrder.asStateFlow()
+    val histories = historyOrder
+        .flatMapLatest { order ->
+            repo.observeHistory(order, HISTORY_PREVIEW_LIMIT)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
     private var next = ""
     private var sel by mutableStateOf<Map<String, Set<String>>>(emptyMap())
 
@@ -68,15 +85,35 @@ class SearchViewModel @Inject constructor(
         input = value
     }
 
-    fun submitSearch() {
-        val query = input.trim()
+    fun submitSearch(
+        value: String = input,
+        recordHistory: Boolean = true
+    ) {
+        val query = value.trim()
+        input = query
         if (query.isEmpty() || isLoading) return
         val fresh = query != keyword
         if (fresh) {
             clearSearchState()
         }
         viewModelScope.launch {
+            if (recordHistory) {
+                repo.recordHistory(query)
+            }
             search(query, reset = true)
+        }
+    }
+
+    fun toggleHistoryOrder() {
+        historyOrder.value = when (historyOrder.value) {
+            SearchHistoryOrder.TIME -> SearchHistoryOrder.HOT
+            SearchHistoryOrder.HOT -> SearchHistoryOrder.TIME
+        }
+    }
+
+    fun deleteHistory(keyword: String) {
+        viewModelScope.launch {
+            repo.deleteHistory(keyword)
         }
     }
 
@@ -117,6 +154,12 @@ class SearchViewModel @Inject constructor(
     fun clearFilters() {
         if (!hasActiveFilter) return
         applyFilters(emptyMap(), SearchTime())
+    }
+
+    fun consumeBack(): Boolean {
+        if (!hasSearchResultState()) return false
+        clearSearchState()
+        return true
     }
 
     fun loadMore() {
@@ -237,6 +280,17 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    private fun hasSearchResultState(): Boolean {
+        return keyword.isNotBlank() ||
+                _videos.value.isNotEmpty() ||
+                isLoading ||
+                isLoadingMore ||
+                errorMessage != null ||
+                filters.isNotEmpty() ||
+                sel.isNotEmpty() ||
+                time.isActive
+    }
+
     private fun clearSearchState() {
         keyword = ""
         next = ""
@@ -250,6 +304,7 @@ class SearchViewModel @Inject constructor(
 
     private companion object {
         const val TAG = "SearchViewModel"
+        const val HISTORY_PREVIEW_LIMIT = 240
         const val SORT_KEY = "sort"
         const val SINCE_KEY = "since"
         const val CUSTOM_TIME = "custom"

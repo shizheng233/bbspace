@@ -2,7 +2,10 @@
 
 import android.app.DatePickerDialog
 import android.text.format.DateFormat
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -67,6 +71,7 @@ import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import com.naaammme.bbspace.core.model.SearchFeedbackSec
 import com.naaammme.bbspace.core.model.SearchFilter
+import com.naaammme.bbspace.core.model.SearchHistoryOrder
 import com.naaammme.bbspace.core.model.SearchOp
 import com.naaammme.bbspace.core.model.SearchTime
 import com.naaammme.bbspace.core.model.SearchVideo
@@ -81,10 +86,17 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val videos by viewModel.videos.collectAsStateWithLifecycle()
+    val histories by viewModel.histories.collectAsStateWithLifecycle()
+    val historyOrder by viewModel.currentHistoryOrder.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val sortFilter = viewModel.filters.firstOrNull { it.key == SORT_KEY }
     val filters = viewModel.filters.filterNot { it.key == SORT_KEY }
     val hasActiveExtraFilter = filters.any { viewModel.selectedOf(it.key).isNotEmpty() } || viewModel.time.isActive
+    val handleBack = {
+        if (!viewModel.consumeBack()) {
+            onBack()
+        }
+    }
     val shouldLoadMore by remember(
         listState,
         videos,
@@ -102,6 +114,8 @@ fun SearchScreen(
         }
     }
 
+    BackHandler(onBack = handleBack)
+
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) {
             viewModel.loadMore()
@@ -115,8 +129,8 @@ fun SearchScreen(
                 text = viewModel.input,
                 autoFocus = viewModel.keyword.isBlank() && viewModel.input.isBlank(),
                 onTextChange = viewModel::updateInput,
-                onBack = onBack,
-                onSearch = viewModel::submitSearch,
+                onBack = handleBack,
+                onSearch = { viewModel.submitSearch() },
                 scrollBehavior = scrollBehavior
             )
         }
@@ -180,15 +194,25 @@ fun SearchScreen(
             when {
                 viewModel.isLoading && videos.isEmpty() -> SearchLoadingList()
 
-                viewModel.keyword.isBlank() && videos.isEmpty() -> {
-                    SearchHint(text = "输入关键词开始搜索")
-                }
-
                 viewModel.errorMessage != null && videos.isEmpty() -> {
                     SearchError(
                         message = viewModel.errorMessage.orEmpty(),
-                        onRetry = viewModel::submitSearch
+                        onRetry = { viewModel.submitSearch(recordHistory = false) }
                     )
+                }
+
+                viewModel.keyword.isBlank() && videos.isEmpty() -> {
+                    if (histories.isEmpty()) {
+                        SearchHint(text = "输入关键词开始搜索")
+                    } else {
+                        SearchHistoryPanel(
+                            histories = histories,
+                            order = historyOrder,
+                            onToggleOrder = viewModel::toggleHistoryOrder,
+                            onSearch = { keyword -> viewModel.submitSearch(keyword) },
+                            onDelete = viewModel::deleteHistory
+                        )
+                    }
                 }
 
                 videos.isEmpty() -> SearchHint(text = "没有找到视频结果")
@@ -233,6 +257,101 @@ fun SearchScreen(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SearchHistoryPanel(
+    histories: List<String>,
+    order: SearchHistoryOrder,
+    onToggleOrder: () -> Unit,
+    onSearch: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item(
+            key = "header",
+            contentType = "header"
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "搜索历史",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                TextButton(onClick = onToggleOrder) {
+                    Text(
+                        text = when (order) {
+                            SearchHistoryOrder.TIME -> "最热"
+                            SearchHistoryOrder.HOT -> "最新"
+                        }
+                    )
+                }
+            }
+        }
+
+        item(
+            key = "chips",
+            contentType = "chips"
+        ) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                histories.forEachIndexed { index, item ->
+                    SearchHistoryChip(
+                        text = item,
+                        featured = index == 0,
+                        onClick = { onSearch(item) },
+                        onLongClick = { onDelete(item) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SearchHistoryChip(
+    text: String,
+    featured: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick
+        ),
+        shape = MaterialTheme.shapes.large,
+        color = if (featured) {
+            MaterialTheme.colorScheme.tertiaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        }
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (featured) {
+                MaterialTheme.colorScheme.onTertiaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
