@@ -20,6 +20,6 @@ android {
 
 dependencies {
     // Compose Runtime for @Immutable annotation (lightweight, no UI dependencies)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.runtime)
+    api(platform(libs.androidx.compose.bom))
+    api(libs.androidx.compose.runtime)
 }

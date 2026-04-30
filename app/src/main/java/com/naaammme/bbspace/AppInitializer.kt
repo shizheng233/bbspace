@@ -7,23 +7,29 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.naaammme.bbspace.core.common.log.Logger
-import com.naaammme.bbspace.infra.coldstart.ColdStartClient
 import com.naaammme.bbspace.core.data.AppSettings
 import com.naaammme.bbspace.core.data.CacheManager
-import com.naaammme.bbspace.core.data.player.VideoPlaybackControllerImpl
+import com.naaammme.bbspace.core.domain.player.PlayerSettings
+import com.naaammme.bbspace.core.domain.player.StreamPlaybackSession
+import com.naaammme.bbspace.infra.coldstart.ColdStartClient
 import com.naaammme.bbspace.infra.grpc.GaiaReporter
 import com.naaammme.bbspace.infra.crypto.BuvidFetcher
 import com.naaammme.bbspace.infra.crypto.GuestIdGenerator
 import com.naaammme.bbspace.infra.crypto.TicketGenerator
 import com.naaammme.bbspace.infra.network.dns.BiliDns
 import com.naaammme.bbspace.infra.player.PlayerEngine
-import com.naaammme.bbspace.playback.VideoPlaybackService
+import com.naaammme.bbspace.playback.PlaybackService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -46,7 +52,8 @@ class AppInitializer @Inject constructor(
     private val gaiaReporter: GaiaReporter,
     private val appSettings: AppSettings,
     private val cacheManager: CacheManager,
-    private val playbackController: VideoPlaybackControllerImpl,
+    private val playerSettings: PlayerSettings,
+    private val playbackSession: StreamPlaybackSession,
     private val playerEngine: PlayerEngine
 ) {
     companion object {
@@ -54,6 +61,7 @@ class AppInitializer @Inject constructor(
     }
 
     private val initScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val appInForeground = MutableStateFlow(true)
 
     @Volatile
     private var initialized = false
@@ -63,9 +71,10 @@ class AppInitializer @Inject constructor(
         biliDns.prefetch()
         warmupImageConnections()
         registerNetworkCallback()
+        observeAppForeground()
         initScope.launch {
             runCatching {
-                playbackController.prepareEngine()
+                playbackSession.prepare()
             }.onSuccess {
                 Logger.d(TAG) { "Player warmup done" }
             }.onFailure { error ->
@@ -150,17 +159,34 @@ class AppInitializer @Inject constructor(
 
     private fun observePlaybackService() {
         initScope.launch {
-            playerEngine.currentSource
-                .map { it != null }
+            combine(
+                playerEngine.currentSource.map { it != null },
+                appInForeground,
+                playerSettings.state.map { it.playback.backgroundPlayback }
+            ) { hasSource, inForeground, backgroundPlayback ->
+                hasSource && !inForeground && backgroundPlayback
+            }
                 .distinctUntilChanged()
                 .collect { shouldStart ->
-                val intent = Intent(context, VideoPlaybackService::class.java)
-                if (shouldStart) {
-                    ContextCompat.startForegroundService(context, intent)
-                } else {
-                    context.stopService(intent)
-                }
+                    val intent = Intent(context, PlaybackService::class.java)
+                    if (shouldStart) {
+                        ContextCompat.startForegroundService(context, intent)
+                    } else {
+                        context.stopService(intent)
+                    }
                 }
         }
+    }
+
+    private fun observeAppForeground() {
+        val lifecycle = ProcessLifecycleOwner.get().lifecycle
+        appInForeground.value = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        lifecycle.addObserver(LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> appInForeground.value = true
+                Lifecycle.Event.ON_STOP -> appInForeground.value = false
+                else -> Unit
+            }
+        })
     }
 }

@@ -94,7 +94,6 @@ fun VideoScreen(
         if (isFull) {
             isFull = false
         } else {
-            viewModel.closePage()
             onBack()
         }
     }
@@ -105,7 +104,7 @@ fun VideoScreen(
 
     DisposableEffect(viewModel) {
         onDispose {
-            viewModel.closePage()
+            viewModel.releaseUi()
         }
     }
 

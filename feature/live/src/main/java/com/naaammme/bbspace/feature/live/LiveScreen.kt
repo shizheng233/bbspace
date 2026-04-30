@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,11 +50,7 @@ fun LiveScreen(
     val owner = LocalLifecycleOwner.current
     val procOwner = remember { ProcessLifecycleOwner.get() }
 
-    DisposableEffect(viewModel) {
-        onDispose {
-            viewModel.closePage()
-        }
-    }
+    BackHandler(onBack = onBack)
 
     DisposableEffect(owner, viewModel) {
         val lifecycle = owner.lifecycle

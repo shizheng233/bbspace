@@ -3,47 +3,41 @@ package com.naaammme.bbspace.feature.live
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.naaammme.bbspace.core.domain.live.LivePlaybackController
 import com.naaammme.bbspace.core.domain.player.PlayerSettings
+import com.naaammme.bbspace.core.domain.player.StreamPlaybackSession
 import com.naaammme.bbspace.core.model.LivePlaybackError
 import com.naaammme.bbspace.core.model.LivePlaybackViewState
 import com.naaammme.bbspace.core.model.LiveRoute
 import com.naaammme.bbspace.core.model.LiveRouteTool
+import com.naaammme.bbspace.core.model.PlayerSettingsState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @HiltViewModel
 class LiveViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val playbackController: LivePlaybackController,
+    private val playbackSession: StreamPlaybackSession,
     playerSettings: PlayerSettings
 ) : ViewModel() {
 
     private val route: LiveRoute? = savedStateHandle.toLiveRoute()
-    val player = playbackController.player
-    val playbackState: StateFlow<LivePlaybackViewState> = playbackController.state
-    val backgroundPlaybackEnabled = playerSettings.state
-        .map { it.playback.backgroundPlayback }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false
-        )
+    val player = playbackSession.player
+    val playbackState: StateFlow<LivePlaybackViewState> = playbackSession.liveState
+    val settingsState: StateFlow<PlayerSettingsState> = playerSettings.state
     val uiState: StateFlow<LiveUiState> = combine(
         playbackState,
-        backgroundPlaybackEnabled
-    ) { playbackState, backgroundPlaybackEnabled ->
+        settingsState
+    ) { playbackState, settingsState ->
         LiveUiState(
             route = route,
             playbackState = playbackState,
-            backgroundPlaybackEnabled = backgroundPlaybackEnabled
+            backgroundPlaybackEnabled = settingsState.playback.backgroundPlayback
         )
     }.stateIn(
         scope = viewModelScope,
@@ -58,50 +52,44 @@ class LiveViewModel @Inject constructor(
         if (playbackState.value.playbackSource?.roomId == target.roomId) return
         if (startJob?.isActive == true) return
         startJob = viewModelScope.launch {
-            playbackController.open(
-                roomId = target.roomId,
-                jumpFrom = target.jumpFrom
+            playbackSession.openLive(
+                route = target,
+                preferredQuality = playbackState.value.playbackSource?.currentQn ?: 0
             )
         }
     }
 
     fun togglePlayPause() {
         if (playbackState.value.isPlaying) {
-            playbackController.pause()
+            playbackSession.pause()
         } else {
-            playbackController.play()
+            playbackSession.play()
         }
     }
 
     fun switchQuality(qn: Int) {
-        playbackController.switchQuality(qn)
+        playbackSession.switchLiveQuality(qn)
     }
 
     fun retry() {
         val target = route ?: return
         startJob?.cancel()
         startJob = viewModelScope.launch {
-            playbackController.open(
-                roomId = target.roomId,
+            playbackSession.openLive(
+                route = target,
                 preferredQuality = playbackState.value.playbackSource?.currentQn ?: 0,
-                jumpFrom = target.jumpFrom,
                 reportEntry = false
             )
         }
     }
 
     fun pause() {
-        playbackController.pause()
-    }
-
-    fun closePage() {
-        startJob?.cancel()
-        startJob = null
-        playbackController.release()
+        playbackSession.pause()
     }
 
     override fun onCleared() {
-        closePage()
+        startJob?.cancel()
+        startJob = null
         super.onCleared()
     }
 }

@@ -44,6 +44,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.navigation.compose)
+    implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.coil.compose)
     implementation(libs.media3.ui)

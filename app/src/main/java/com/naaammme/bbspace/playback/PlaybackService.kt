@@ -15,10 +15,10 @@ import androidx.media3.session.MediaSession
 import androidx.media3.ui.PlayerNotificationManager
 import com.naaammme.bbspace.MainActivity
 import com.naaammme.bbspace.R
-import com.naaammme.bbspace.core.data.player.VideoPlaybackControllerImpl
-import com.naaammme.bbspace.core.domain.live.LivePlaybackController
+import com.naaammme.bbspace.core.domain.player.StreamPlaybackSession
 import com.naaammme.bbspace.infra.player.EngineSource
 import com.naaammme.bbspace.infra.player.PlayerEngine
+import com.naaammme.bbspace.core.model.StreamPlaybackTarget
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -31,12 +31,9 @@ import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 @UnstableApi
-class VideoPlaybackService : Service() {
+class PlaybackService : Service() {
     @Inject
-    lateinit var playbackController: VideoPlaybackControllerImpl
-
-    @Inject
-    lateinit var livePlaybackController: LivePlaybackController
+    lateinit var playbackSession: StreamPlaybackSession
 
     @Inject
     lateinit var playerEngine: PlayerEngine
@@ -55,9 +52,9 @@ class VideoPlaybackService : Service() {
         scope.launch {
             combine(
                 playerEngine.currentSource,
-                playbackController.sessionState,
-                playbackController.pageMeta,
-                livePlaybackController.state
+                playbackSession.currentTarget,
+                playbackSession.pageMeta,
+                playbackSession.liveState
             ) { _, _, _, _ -> Unit }.collect {
                 mediaSession?.setSessionActivity(createContentIntent())
                 updateActionMode()
@@ -162,7 +159,7 @@ class VideoPlaybackService : Service() {
 
         override fun getCurrentContentText(player: Player): CharSequence? {
             if (isLivePlayback()) {
-                return livePlaybackController.state.value.playbackSource?.currentDescription
+                return playbackSession.liveState.value.playbackSource?.currentDescription
             }
             player.currentMediaItem
                 ?.mediaMetadata
@@ -170,7 +167,7 @@ class VideoPlaybackService : Service() {
                 ?.toString()
                 ?.takeIf(String::isNotBlank)
                 ?.let { return it }
-            val meta = playbackController.pageMeta.value
+            val meta = playbackSession.pageMeta.value
             val text = listOfNotNull(
                 meta?.ownerName?.takeIf(String::isNotBlank),
                 meta?.partTitle?.takeIf(String::isNotBlank)
@@ -201,10 +198,10 @@ class VideoPlaybackService : Service() {
                 return
             }
             if (isForeground) {
-                ServiceCompat.stopForeground(this@VideoPlaybackService, ServiceCompat.STOP_FOREGROUND_DETACH)
+                ServiceCompat.stopForeground(this@PlaybackService, ServiceCompat.STOP_FOREGROUND_DETACH)
                 isForeground = false
             }
-            NotificationManagerCompat.from(this@VideoPlaybackService).notify(
+            NotificationManagerCompat.from(this@PlaybackService).notify(
                 notificationId,
                 notification
             )
@@ -215,15 +212,11 @@ class VideoPlaybackService : Service() {
             dismissedByUser: Boolean
         ) {
             if (isForeground) {
-                ServiceCompat.stopForeground(this@VideoPlaybackService, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                ServiceCompat.stopForeground(this@PlaybackService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                 isForeground = false
             }
             if (dismissedByUser) {
-                if (isLivePlayback()) {
-                    livePlaybackController.release()
-                } else {
-                    playbackController.stopPlayback()
-                }
+                playbackSession.close()
             }
             stopSelf()
         }
@@ -251,9 +244,12 @@ class VideoPlaybackService : Service() {
     }
 
     private fun currentTitle(): String {
-        if (isLivePlayback()) {
-            val roomId = livePlaybackController.state.value.playbackSource?.roomId
-            return roomId?.let { "直播间 $it" } ?: "直播播放"
+        when (val target = playbackSession.currentTarget.value) {
+            is StreamPlaybackTarget.Live -> {
+                return target.route.title?.takeIf(String::isNotBlank)
+                    ?: "直播间 ${target.route.roomId}"
+            }
+            is StreamPlaybackTarget.Video, null -> Unit
         }
         playerEngine.player.value
             ?.currentMediaItem
@@ -262,7 +258,7 @@ class VideoPlaybackService : Service() {
             ?.toString()
             ?.takeIf(String::isNotBlank)
             ?.let { return it }
-        return playbackController.pageMeta.value?.title
+        return playbackSession.pageMeta.value?.title
             ?.takeIf(String::isNotBlank)
             ?: "视频播放"
     }
@@ -291,7 +287,8 @@ class VideoPlaybackService : Service() {
     }
 
     private fun isLivePlayback(): Boolean {
-        return playerEngine.currentSource.value is EngineSource.LiveFlv
+        return playbackSession.currentTarget.value is StreamPlaybackTarget.Live ||
+            playerEngine.currentSource.value is EngineSource.LiveFlv
     }
 
     private companion object {

@@ -4,9 +4,8 @@ import com.naaammme.bbspace.core.common.AuthProvider
 import com.naaammme.bbspace.core.data.AuthProviderImpl
 import com.naaammme.bbspace.core.data.download.VideoDownloadRepoImpl
 import com.naaammme.bbspace.core.data.player.DownloadPlaybackControllerImpl
-import com.naaammme.bbspace.core.data.player.LivePlaybackControllerImpl
 import com.naaammme.bbspace.core.data.player.PlayerSettingsImpl
-import com.naaammme.bbspace.core.data.player.VideoPlaybackControllerImpl
+import com.naaammme.bbspace.core.data.player.StreamPlaybackSessionImpl
 import com.naaammme.bbspace.core.data.repository.AuthRepoImpl
 import com.naaammme.bbspace.core.data.repository.CommentRepoImpl
 import com.naaammme.bbspace.core.data.repository.FeedRepoImpl
@@ -26,12 +25,11 @@ import com.naaammme.bbspace.core.domain.download.VideoDownloadRepository
 import com.naaammme.bbspace.core.domain.feed.FeedRepository
 import com.naaammme.bbspace.core.domain.history.HistoryRepository
 import com.naaammme.bbspace.core.domain.history.PlaybackHistoryRepository
-import com.naaammme.bbspace.core.domain.live.LivePlaybackController
 import com.naaammme.bbspace.core.domain.live.LiveRecommendRepository
 import com.naaammme.bbspace.core.domain.live.LiveRepository
 import com.naaammme.bbspace.core.domain.player.DownloadPlaybackController
 import com.naaammme.bbspace.core.domain.player.PlayerSettings
-import com.naaammme.bbspace.core.domain.player.VideoPlaybackController
+import com.naaammme.bbspace.core.domain.player.StreamPlaybackSession
 import com.naaammme.bbspace.core.domain.player.VideoPlayerRepository
 import com.naaammme.bbspace.core.domain.search.SearchRepository
 import com.naaammme.bbspace.core.domain.space.SpaceRepository
@@ -68,10 +66,6 @@ abstract class DataModule {
 
     @Binds
     @Singleton
-    abstract fun bindLivePlaybackController(impl: LivePlaybackControllerImpl): LivePlaybackController
-
-    @Binds
-    @Singleton
     abstract fun bindCommentRepo(impl: CommentRepoImpl): CommentRepository
 
     @Binds
@@ -96,7 +90,7 @@ abstract class DataModule {
 
     @Binds
     @Singleton
-    abstract fun bindVideoPlaybackController(impl: VideoPlaybackControllerImpl): VideoPlaybackController
+    abstract fun bindStreamPlaybackSession(impl: StreamPlaybackSessionImpl): StreamPlaybackSession
 
     @Binds
     @Singleton

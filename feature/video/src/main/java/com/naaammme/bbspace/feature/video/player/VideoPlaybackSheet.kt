@@ -209,6 +209,13 @@ private fun PlaybackSettingsSection(
     )
 
     SheetSwitchCard(
+        title = "应用内小窗",
+        subtitle = "允许把视频和直播缩成应用内小窗继续播放",
+        checked = settingsState.playback.inAppMiniPlayer,
+        onCheckedChange = viewModel::updateInAppMiniPlayer
+    )
+
+    SheetSwitchCard(
         title = "播放行为上报",
         subtitle = "向服务端上报播放心跳和历史，关闭影响个性化推荐和历史记录",
         checked = settingsState.playback.reportPlayback,

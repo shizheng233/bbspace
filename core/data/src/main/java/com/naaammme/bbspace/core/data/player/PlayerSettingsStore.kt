@@ -25,6 +25,7 @@ class PlayerSettingsStore @Inject constructor(
     private val preferSoftDecKey = booleanPreferencesKey("prefer_soft_dec")
     private val decFallbackKey = booleanPreferencesKey("dec_fallback")
     private val bgPlayKey = booleanPreferencesKey("bg_play")
+    private val inAppMiniPlayerKey = booleanPreferencesKey("in_app_mini_player")
     private val reportPlaybackKey = booleanPreferencesKey("report_playback")
     private val danmakuEnabledKey = booleanPreferencesKey("danmaku_enabled")
     private val danmakuAreaPercentKey = intPreferencesKey("danmaku_area_percent")
@@ -46,6 +47,7 @@ class PlayerSettingsStore @Inject constructor(
     val preferSoftwareDecode: Flow<Boolean> = context.appSettingsDataStore.data.map { it[preferSoftDecKey] ?: false }
     val decoderFallback: Flow<Boolean> = context.appSettingsDataStore.data.map { it[decFallbackKey] ?: true }
     val backgroundPlayback: Flow<Boolean> = context.appSettingsDataStore.data.map { it[bgPlayKey] ?: false }
+    val inAppMiniPlayer: Flow<Boolean> = context.appSettingsDataStore.data.map { it[inAppMiniPlayerKey] ?: true }
     val reportPlayback: Flow<Boolean> = context.appSettingsDataStore.data.map { it[reportPlaybackKey] ?: true }
     val danmakuEnabled: Flow<Boolean> = context.appSettingsDataStore.data.map { it[danmakuEnabledKey] ?: true }
     val danmakuAreaPercent: Flow<Int> = context.appSettingsDataStore.data.map { it[danmakuAreaPercentKey] ?: 100 }
@@ -95,6 +97,10 @@ class PlayerSettingsStore @Inject constructor(
 
     suspend fun updateBackgroundPlayback(enabled: Boolean) {
         context.appSettingsDataStore.edit { it[bgPlayKey] = enabled }
+    }
+
+    suspend fun updateInAppMiniPlayer(enabled: Boolean) {
+        context.appSettingsDataStore.edit { it[inAppMiniPlayerKey] = enabled }
     }
 
     suspend fun updateReportPlayback(enabled: Boolean) {
