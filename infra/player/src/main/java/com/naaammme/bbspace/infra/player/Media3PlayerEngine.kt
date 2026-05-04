@@ -1,6 +1,7 @@
 ﻿package com.naaammme.bbspace.infra.player
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -60,6 +61,10 @@ class Media3PlayerEngine @Inject constructor(
     private var videoDecoderName: String? = null
     private var audioDecoderName: String? = null
     private var firstFrameSeq = 0L
+    private var lastEventsPlaybackState = Player.STATE_IDLE
+    private var lastEventsIsPlaying = false
+    private var lastEventsSnapshotMs = 0L
+
     private val playerListener = object : Player.Listener {
         override fun onPositionDiscontinuity(
             oldPosition: Player.PositionInfo,
@@ -86,6 +91,18 @@ class Media3PlayerEngine @Inject constructor(
         }
 
         override fun onEvents(player: Player, events: Player.Events) {
+            val state = player.playbackState
+            val playing = player.isPlaying
+            if (state != lastEventsPlaybackState || playing != lastEventsIsPlaying) {
+                lastEventsPlaybackState = state
+                lastEventsIsPlaying = playing
+                lastEventsSnapshotMs = 0L
+                updateSnapshot()
+                return
+            }
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastEventsSnapshotMs < 250) return
+            lastEventsSnapshotMs = now
             updateSnapshot()
         }
     }

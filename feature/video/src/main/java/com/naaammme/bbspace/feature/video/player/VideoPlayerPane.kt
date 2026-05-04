@@ -83,9 +83,6 @@ internal fun VideoPlayerPane(
     var showPlaybackSheet by remember { mutableStateOf(false) }
     var showCtrl by remember { mutableStateOf(true) }
     var dragMs by remember { mutableStateOf<Long?>(null) }
-    var livePosMs by remember(player) {
-        mutableStateOf(0L)
-    }
 
     LaunchedEffect(showCtrl, state.isPlaying, dragMs, showA, showQ, showSp, showPlaybackSheet) {
         if (
@@ -102,26 +99,6 @@ internal fun VideoPlayerPane(
         }
     }
 
-    LaunchedEffect(
-        player,
-        showCtrl,
-        dragMs,
-        state.isPlaying,
-        state.seekEventId,
-        state.hasRenderedFirstFrame
-    ) {
-        val curPlayer = player
-        if (!showCtrl || dragMs != null || curPlayer == null) {
-            livePosMs = state.positionMs
-            return@LaunchedEffect
-        }
-        do {
-            livePosMs = curPlayer.currentPosition.coerceAtLeast(0L)
-            if (!state.isPlaying) break
-            delay(200)
-        } while (showCtrl && dragMs == null)
-    }
-
     val durationMs = player?.duration
         ?.takeIf { it > 0L }
         ?: state.durationMs
@@ -129,7 +106,7 @@ internal fun VideoPlayerPane(
         ?: state.playbackSource?.durationMs?.coerceAtLeast(0L)
         ?: 0L
     val danmakuOn = settingsState.danmaku.enabled
-    val barMs = dragMs ?: livePosMs
+    val barMs = dragMs ?: state.positionMs
     val sliderVal = if (durationMs > 0) {
         (barMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
     } else {
@@ -154,6 +131,11 @@ internal fun VideoPlayerPane(
         initialSpeed = state.speed
     )
     var lastWarmAspect by remember(playerView) { mutableStateOf<Float?>(null) }
+
+    LaunchedEffect(state.playWhenReady) {
+        playerView.keepScreenOn = state.playWhenReady
+    }
+
     DisposableEffect(playerView) {
         onDispose {
             playerView.player = null
@@ -175,7 +157,6 @@ internal fun VideoPlayerPane(
                 if (view.player !== player) {
                     view.player = player
                 }
-                view.keepScreenOn = state.playWhenReady
             },
             modifier = Modifier.fillMaxSize()
         )

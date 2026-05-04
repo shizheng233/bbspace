@@ -68,27 +68,20 @@ class VideoViewModel @Inject constructor(
         combine(
             playerState,
             currentTarget,
-            currentPageTarget,
-            _detail,
-            _detailLoading
-        ) { playbackState, activeTarget, pageTarget, detail, detailLoading ->
-            PageStateSnapshot(
-                playbackState = playbackState,
-                activeTarget = activeTarget,
-                pageTarget = pageTarget,
-                detail = detail,
-                detailLoading = detailLoading
-            )
+            currentPageTarget
+        ) { playbackState, activeTarget, pageTarget ->
+            val activeCid = (pageSessionTarget(pageTarget, activeTarget) as? VideoTarget.Ugc)?.cid
+            playbackState.playbackSource?.videoId?.cid
+                ?: activeCid
+                ?: (pageTarget as? VideoTarget.Ugc)?.cid
         },
+        _detail,
+        _detailLoading,
         _detailError
-    ) { snap, detailError ->
-        val activeCid = (pageSessionTarget(snap.pageTarget, snap.activeTarget) as? VideoTarget.Ugc)?.cid
-        val curCid = snap.playbackState.playbackSource?.videoId?.cid
-            ?: activeCid
-            ?: (snap.pageTarget as? VideoTarget.Ugc)?.cid
+    ) { curCid, detail, detailLoading, detailError ->
         VideoPageState(
-            detail = snap.detail,
-            detailLoading = snap.detailLoading,
+            detail = detail,
+            detailLoading = detailLoading,
             detailError = detailError,
             curCid = curCid
         )
@@ -460,14 +453,6 @@ private fun PlaybackError.toUiMsg(): String {
         is PlaybackError.NoPlayableStream -> message
     }
 }
-
-private data class PageStateSnapshot(
-    val playbackState: PlaybackViewState,
-    val activeTarget: VideoTarget?,
-    val pageTarget: VideoTarget?,
-    val detail: VideoDetail?,
-    val detailLoading: Boolean
-)
 
 private fun VideoDetail?.toPlaybackHistoryMeta(cid: Long?): PlaybackHistoryMeta? {
     this ?: return null
