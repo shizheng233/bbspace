@@ -35,7 +35,7 @@ fun rememberDanmakuOverlayState(
             isFocusable = false
             isFocusableInTouchMode = false
         }
-        val danmakuContext = createDanmakuContext().apply {
+        val danmakuContext = createDanmakuContext(context.resources.displayMetrics.density).apply {
             applyConfig(initialConfig)
         }
         val timeProvider = DanmakuPlayerTimeProvider(

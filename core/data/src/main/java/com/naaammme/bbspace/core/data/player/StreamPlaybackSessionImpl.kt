@@ -31,6 +31,7 @@ import com.naaammme.bbspace.core.model.StreamPlaybackSessionState
 import com.naaammme.bbspace.core.model.StreamPlaybackTarget
 import com.naaammme.bbspace.core.model.VideoTarget
 import com.naaammme.bbspace.core.model.buildPlaybackCdns
+import com.naaammme.bbspace.core.model.isSameEntry
 import com.naaammme.bbspace.core.model.toPlayableParams
 import com.naaammme.bbspace.infra.player.DecoderMode
 import com.naaammme.bbspace.infra.player.EngineDiscontinuityReason
@@ -334,6 +335,9 @@ class StreamPlaybackSessionImpl @Inject constructor(
         )
         val state = vodSession.value
         val currentVideoTarget = (_currentTarget.value as? StreamPlaybackTarget.Video)?.target
+        val reopenSameEntry = currentVideoTarget?.isSameEntry(target) == true &&
+            state.playbackSource != null &&
+            state.error == null
         if (
             currentVideoTarget == target &&
             state.error == null &&
@@ -345,12 +349,27 @@ class StreamPlaybackSessionImpl @Inject constructor(
         }
 
         val token = openId.incrementAndGet()
-        finishVideoPlayback(invalidateOpen = false, releasePlayer = false, nextTarget = target)
         nextPlayWhenReady = true
         _pageMeta.value = null
         reporter.bindOwner(token)
-        vodSession.value = PlayerSessionState(isPreparing = true)
-        _videoState.value = PlaybackViewState(isPreparing = true)
+        if (reopenSameEntry) {
+            _currentTarget.value = StreamPlaybackTarget.Video(target)
+            val pendingState = state.copy(
+                isPreparing = true,
+                error = null
+            )
+            vodSession.value = pendingState
+            _videoState.value = pendingState.toViewState(
+                snapshot = latestSnapshot(),
+                prev = _videoState.value,
+                isNewSeekEvent = false
+            )
+            syncSessionState()
+        } else {
+            finishVideoPlayback(invalidateOpen = false, releasePlayer = false, nextTarget = target)
+            vodSession.value = PlayerSessionState(isPreparing = true)
+            _videoState.value = PlaybackViewState(isPreparing = true)
+        }
 
         try {
             val openCfg = coroutineScope {
@@ -382,6 +401,9 @@ class StreamPlaybackSessionImpl @Inject constructor(
                 ?: throw NoPlayableStreamException("暂无可用播放流")
             val startMs = resolveStartMs(request, source, openCfg.localResume)
             if (openId.get() != token) return
+            if (reopenSameEntry) {
+                reporter.finishSession(latestSnapshot())
+            }
 
             vodSession.value = PlayerSessionState(
                 playbackSource = source,
@@ -435,6 +457,16 @@ class StreamPlaybackSessionImpl @Inject constructor(
                     "epId=${request.playable.biz.epId} seasonId=${request.playable.biz.seasonId} " +
                     "q=${request.preferredQuality} msg=${t.message}"
             }
+            if (reopenSameEntry) {
+                vodSession.value = state
+                _videoState.value = state.toViewState(
+                    snapshot = latestSnapshot(),
+                    prev = _videoState.value,
+                    isNewSeekEvent = false
+                )
+                syncSessionState()
+                return
+            }
             vodSession.value = vodSession.value.copy(
                 isPreparing = false,
                 error = when (t) {
@@ -475,15 +507,19 @@ class StreamPlaybackSessionImpl @Inject constructor(
     ) {
         val snapshot = latestSnapshot()
         val hadVideo = vodSession.value.playbackSource != null
+        val hasEngineMedia = playerEngine.currentSource.value != null ||
+            player.value?.currentMediaItem != null
         if (invalidateOpen) openId.incrementAndGet()
         _currentTarget.value = nextTarget?.let { StreamPlaybackTarget.Video(it) }
         nextPlayWhenReady = true
         _pageMeta.value = null
         vodSession.value = PlayerSessionState()
         _videoState.value = PlaybackViewState()
-        if (hadVideo) {
+        if (hasEngineMedia) {
             if (releasePlayer) playerEngine.release()
             else playerEngine.stopForReuse(resetPosition = true)
+        }
+        if (hadVideo) {
             reporter.finishSession(snapshot)
         }
     }

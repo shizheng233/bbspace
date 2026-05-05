@@ -25,6 +25,12 @@ import com.naaammme.bbspace.core.common.UserAgentBuilder
 import com.naaammme.bbspace.core.common.log.Logger
 import com.naaammme.bbspace.infra.crypto.DeviceIdentity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,6 +70,7 @@ class Media3PlayerEngine @Inject constructor(
     private var lastEventsPlaybackState = Player.STATE_IDLE
     private var lastEventsIsPlaying = false
     private var lastEventsSnapshotMs = 0L
+    private var progressJob: Job? = null
 
     private val playerListener = object : Player.Listener {
         override fun onPositionDiscontinuity(
@@ -98,6 +105,7 @@ class Media3PlayerEngine @Inject constructor(
                 lastEventsIsPlaying = playing
                 lastEventsSnapshotMs = 0L
                 updateSnapshot()
+                updateProgressPolling()
                 return
             }
             val now = SystemClock.elapsedRealtime()
@@ -204,6 +212,8 @@ class Media3PlayerEngine @Inject constructor(
     }
 
     override fun stopForReuse(resetPosition: Boolean) {
+        progressJob?.cancel()
+        progressJob = null
         val player = exoPlayer ?: run {
             resetRuntimeState()
             _snapshot.value = PlaybackSnapshot()
@@ -221,6 +231,8 @@ class Media3PlayerEngine @Inject constructor(
     }
 
     override fun release() {
+        progressJob?.cancel()
+        progressJob = null
         val player = exoPlayer ?: return
         resetRuntimeState()
         exoPlayer = null
@@ -391,6 +403,26 @@ class Media3PlayerEngine @Inject constructor(
             discontinuityReason = discontinuityReason,
             errorMessage = errorMessage
         )
+    }
+
+    private fun updateProgressPolling() {
+        val player = exoPlayer
+        val shouldPoll = player != null &&
+            lastEventsIsPlaying &&
+            lastEventsPlaybackState == Player.STATE_READY
+        if (shouldPoll) {
+            if (progressJob?.isActive != true) {
+                progressJob = CoroutineScope(Dispatchers.Main).launch {
+                    while (isActive) {
+                        delay(200)
+                        updateSnapshot()
+                    }
+                }
+            }
+        } else {
+            progressJob?.cancel()
+            progressJob = null
+        }
     }
 
     private fun resetRuntimeState() {

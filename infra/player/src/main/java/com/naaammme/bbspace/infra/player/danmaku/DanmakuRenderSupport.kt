@@ -10,11 +10,14 @@ import master.flame.danmaku.api.PlayerTimeProvider
 import master.flame.danmaku.danmaku.model.BaseDanmaku
 import master.flame.danmaku.danmaku.model.IDisplayer
 import master.flame.danmaku.danmaku.model.android.DanmakuContext
+import kotlin.math.roundToInt
 
-internal fun createDanmakuContext(): DanmakuContext {
+internal fun createDanmakuContext(
+    density: Float
+): DanmakuContext {
     return DanmakuContext.create()
         .setDanmakuStyle(IDisplayer.DANMAKU_STYLE_STROKEN, 3f)
-        .setDanmakuMargin(24)
+        .setDanmakuMargin((density * DANMAKU_ROW_GAP_DP).roundToInt().coerceAtLeast(1))
 }
 
 internal class DefaultDanmakuItemMapper : DanmakuItemMapper<DanmakuItem> {
@@ -178,3 +181,4 @@ private val DanmakuConfig.overlappingRules: Map<Int, Boolean>?
     }
 
 internal const val DANMAKU_SEEK_SYNC_THRESHOLD_MS = 1_000L
+private const val DANMAKU_ROW_GAP_DP = 4f

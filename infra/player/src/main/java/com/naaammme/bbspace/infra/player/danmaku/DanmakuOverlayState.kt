@@ -188,30 +188,22 @@ class DanmakuOverlayState internal constructor(
         if (requireTargetWindow && !curReady) {
             // 目标窗口未就绪但加载可用窗口，避免弹幕完全消失
             // 等目标窗口到达时通过 syncPosition seek 到正确位置
-            if (appliedWindowIds.isNotEmpty()) {
-                appliedWindowIds.clear()
-                session.clearSegments()
-            }
-            val segs = nextWindows.map { (windowId, window) ->
-                DanmakuSegmentData(windowId, window.items)
-            }
-            session.replaceSegments(segs)
-            appliedWindowIds.addAll(nextWindows.map { it.key })
+            replaceAllWindows(nextWindows)
             pendingSeek = true
             return
         }
 
-        val nextWindowIds = linkedSetOf<Long>().apply {
-            addAll(nextWindows.map { it.key })
-        }
-        if (appliedWindowIds.any { it !in nextWindowIds }) {
-            session.replaceSegments(
-                nextWindows.map { (windowId, window) ->
-                    DanmakuSegmentData(windowId, window.items)
-                }
-            )
-            appliedWindowIds.clear()
-            appliedWindowIds.addAll(nextWindowIds)
+        val nextWindowIds = nextWindows.mapTo(linkedSetOf()) { it.key }
+        val missingApplied = appliedWindowIds - nextWindowIds
+        if (missingApplied.isNotEmpty()) {
+            val shouldReload =
+                targetWindowId in missingApplied ||
+                    nextWindows.firstOrNull()?.key != appliedWindowIds.firstOrNull()
+            if (shouldReload) {
+                replaceAllWindows(nextWindows)
+            } else {
+                appliedWindowIds.removeAll(missingApplied)
+            }
             return
         }
 
@@ -220,6 +212,18 @@ class DanmakuOverlayState internal constructor(
                 session.appendSegment(DanmakuSegmentData(windowId, window.items))
             }
         }
+    }
+
+    private fun replaceAllWindows(
+        windows: List<Map.Entry<Long, DanmakuWindow>>
+    ) {
+        session.replaceSegments(
+            windows.map { (windowId, window) ->
+                DanmakuSegmentData(windowId, window.items)
+            }
+        )
+        appliedWindowIds.clear()
+        appliedWindowIds.addAll(windows.map { it.key })
     }
 
     private fun consumeSeekEvent(seekEventId: Long): Boolean {
