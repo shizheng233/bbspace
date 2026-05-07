@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,15 +40,24 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
+import com.naaammme.bbspace.feature.live.LiveViewModel
+import com.naaammme.bbspace.infra.player.danmaku.DanmakuLayer
+import com.naaammme.bbspace.infra.player.danmaku.DanmakuRenderMode
+import com.naaammme.bbspace.infra.player.danmaku.rememberDanmakuOverlayState
 import com.naaammme.bbspace.core.model.LivePlaybackViewState
 import com.naaammme.bbspace.core.model.LiveQualityOption
+import com.naaammme.bbspace.core.model.LiveRoomMessage
 import com.naaammme.bbspace.core.model.LiveRoute
+import com.naaammme.bbspace.core.model.LiveRoomSessionState
 import com.naaammme.bbspace.core.model.LiveStatus
 import com.naaammme.bbspace.core.model.PlaybackState
+import com.naaammme.bbspace.core.model.DanmakuItem
+import com.naaammme.bbspace.core.model.DanmakuSessionState
 import com.naaammme.bbspace.feature.live.toUiMessage
 import kotlinx.coroutines.delay
 
@@ -55,9 +65,11 @@ import kotlinx.coroutines.delay
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 internal fun LivePlayerPane(
+    viewModel: LiveViewModel,
     route: LiveRoute?,
     player: Player?,
     playbackState: LivePlaybackViewState,
+    roomSession: LiveRoomSessionState,
     isFull: Boolean,
     onToggleFull: () -> Unit,
     onTogglePlay: () -> Unit,
@@ -66,6 +78,7 @@ internal fun LivePlayerPane(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
     val tapSrc = remember { MutableInteractionSource() }
     var showCtrl by remember { mutableStateOf(true) }
     var showQualityDialog by remember { mutableStateOf(false) }
@@ -73,12 +86,29 @@ internal fun LivePlayerPane(
     val qualityText = playbackState.playbackSource?.currentDescription
         ?.takeIf(String::isNotBlank)
         ?: "画质"
+    val danmakuOn = settingsState.danmaku.enabled
     val playerView = remember(context) {
         PlayerView(context).apply {
             useController = false
             setEnableComposeSurfaceSyncWorkaround(true)
         }
     }
+    val danmakuOverlayState = rememberDanmakuOverlayState(
+        initialConfig = settingsState.danmaku,
+        initialPositionMs = 0L,
+        initialIsPlaying = playbackState.isPlaying,
+        initialSpeed = 1f
+    )
+    val liveDanmakuState = remember(playbackState.playbackSource?.roomId) {
+        DanmakuSessionState(
+            sourceKey = playbackState.playbackSource?.roomId?.takeIf { it > 0L }?.let { "live:$it" }
+        )
+    }
+    val appendState = remember { AppendState() }
+    val curMessages by rememberUpdatedState(roomSession.messages)
+    val curPlaybackState by rememberUpdatedState(playbackState)
+    val curDanmakuOn by rememberUpdatedState(danmakuOn)
+    val latestMsgLocalId = roomSession.messages.lastOrNull()?.localId ?: 0L
 
     LaunchedEffect(
         showCtrl,
@@ -96,6 +126,30 @@ internal fun LivePlayerPane(
         ) {
             delay(3_000)
             showCtrl = false
+        }
+    }
+
+    LaunchedEffect(playbackState.playbackSource?.roomId, roomSession.roomId, danmakuOn) {
+        val roomId = playbackState.playbackSource?.roomId ?: 0L
+        appendState.roomId = roomId
+        danmakuOverlayState.clearLiveDanmakus()
+        if (!danmakuOn || roomId <= 0L || roomSession.roomId != roomId) {
+            appendState.lastLocalId = 0L
+            return@LaunchedEffect
+        }
+        appendState.lastLocalId = roomSession.messages.lastOrNull()?.localId ?: 0L
+    }
+
+    LaunchedEffect(latestMsgLocalId, playbackState.playbackSource?.roomId, danmakuOn) {
+        val roomId = curPlaybackState.playbackSource?.roomId ?: return@LaunchedEffect
+        if (!curDanmakuOn || appendState.roomId != roomId || roomSession.roomId != roomId) {
+            return@LaunchedEffect
+        }
+        curMessages.forEach { msg ->
+            if (msg.localId <= appendState.lastLocalId) return@forEach
+            if (!msg.shouldRenderLiveDanmaku()) return@forEach
+            danmakuOverlayState.appendDanmaku(msg.toLiveDanmakuItem())
+            appendState.lastLocalId = msg.localId
         }
     }
 
@@ -118,6 +172,19 @@ internal fun LivePlayerPane(
                 view.keepScreenOn = playbackState.playWhenReady
             },
             modifier = Modifier.fillMaxSize()
+        )
+
+        DanmakuLayer(
+            playerView = playerView,
+            overlayState = danmakuOverlayState,
+            danmakuState = liveDanmakuState,
+            danmakuConfig = settingsState.danmaku,
+            positionMs = 0L,
+            isPlaying = playbackState.isPlaying,
+            speed = 1f,
+            seekEventId = 0L,
+            hasSource = playbackState.playbackSource != null,
+            renderMode = DanmakuRenderMode.LiveAppend
         )
 
         if (!playbackState.hasRenderedFirstFrame && !route?.cover.isNullOrBlank()) {
@@ -153,9 +220,14 @@ internal fun LivePlayerPane(
                 fullText = if (isFull) "退出全屏" else "全屏",
                 playOn = playbackState.playbackSource != null,
                 qualityOn = (playbackState.playbackSource?.qualityOptions?.size ?: 0) > 1,
+                danmakuText = if (danmakuOn) "弹幕" else "弹幕关",
                 onTogglePlay = {
                     showCtrl = true
                     onTogglePlay()
+                },
+                onDanmakuClick = {
+                    showCtrl = true
+                    viewModel.setDanmakuEnabled(!danmakuOn)
                 },
                 onQualityClick = {
                     showCtrl = true
@@ -223,10 +295,12 @@ internal fun LivePlayerPane(
 private fun LivePlayerCtrlBar(
     playText: String,
     qualityText: String,
+    danmakuText: String,
     fullText: String,
     playOn: Boolean,
     qualityOn: Boolean,
     onTogglePlay: () -> Unit,
+    onDanmakuClick: () -> Unit,
     onQualityClick: () -> Unit,
     onInfoClick: () -> Unit,
     onFullClick: () -> Unit,
@@ -261,6 +335,12 @@ private fun LivePlayerCtrlBar(
                 text = qualityText,
                 enabled = qualityOn,
                 onClick = onQualityClick,
+                modifier = Modifier.weight(1f)
+            )
+            LiveCtrlBtn(
+                text = danmakuText,
+                enabled = true,
+                onClick = onDanmakuClick,
                 modifier = Modifier.weight(1f)
             )
             LiveCtrlBtn(
@@ -461,4 +541,38 @@ private fun livePlaybackStateText(state: LivePlaybackViewState): String {
             PlaybackState.Idle -> "未开始"
         }
     }
+}
+
+private class AppendState {
+    var roomId: Long = 0L
+    var lastLocalId: Long = 0L
+}
+
+private fun LiveRoomMessage.shouldRenderLiveDanmaku(): Boolean {
+    return !isMirror && content.isNotBlank()
+}
+
+private fun LiveRoomMessage.toLiveDanmakuItem(): DanmakuItem {
+    return DanmakuItem(
+        id = localId,
+        idStr = msgId ?: localId.toString(),
+        progressMs = 0,
+        mode = mode,
+        fontSize = fontSize,
+        color = color,
+        midHash = user?.uid?.takeIf { it > 0L }?.toString().orEmpty(),
+        content = content,
+        createdAtEpochSecond = (sendTimeMs / 1000L).coerceAtLeast(0L),
+        weight = 0,
+        action = "",
+        pool = 0,
+        attr = 0,
+        likeCount = 0L,
+        animation = "",
+        extra = extra.orEmpty(),
+        colorfulType = 0,
+        type = 0,
+        oid = 0L,
+        dmFromType = 0
+    )
 }

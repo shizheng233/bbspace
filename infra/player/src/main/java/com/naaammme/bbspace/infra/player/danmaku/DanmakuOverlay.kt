@@ -16,6 +16,12 @@ import master.flame.danmaku.api.SegmentDanmakuSession
 import master.flame.danmaku.controller.IDanmakuView
 import master.flame.danmaku.ui.widget.DanmakuSurfaceView
 
+enum class DanmakuRenderMode {
+    Segmented,
+    LiveAppend
+}
+
+// initial* 参数仅在首次创建时生效，后续状态通过 sync/syncLive 更新
 @Composable
 fun rememberDanmakuOverlayState(
     initialConfig: DanmakuConfig,
@@ -69,6 +75,7 @@ fun DanmakuLayer(
     speed: Float,
     seekEventId: Long,
     hasSource: Boolean,
+    renderMode: DanmakuRenderMode = DanmakuRenderMode.Segmented,
     manageLifecycle: Boolean = true
 ) {
     if (manageLifecycle) {
@@ -112,14 +119,27 @@ fun DanmakuLayer(
     }
 
     SideEffect {
-        overlayState.sync(
-            danmakuState = danmakuState,
-            config = danmakuConfig,
-            positionMs = positionMs,
-            isPlaying = isPlaying,
-            speed = speed,
-            seekEventId = seekEventId,
-            hasSource = hasSource
-        )
+        when (renderMode) {
+            DanmakuRenderMode.Segmented -> {
+                overlayState.sync(
+                    danmakuState = danmakuState,
+                    config = danmakuConfig,
+                    positionMs = positionMs,
+                    isPlaying = isPlaying,
+                    speed = speed,
+                    seekEventId = seekEventId,
+                    hasSource = hasSource
+                )
+            }
+
+            DanmakuRenderMode.LiveAppend -> {
+                overlayState.syncLive(
+                    config = danmakuConfig,
+                    isPlaying = isPlaying,
+                    speed = speed,
+                    hasSource = hasSource
+                )
+            }
+        }
     }
 }

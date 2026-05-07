@@ -28,9 +28,8 @@ import kotlinx.coroutines.launch
 class LiveViewModel @Inject constructor(
     private val playbackSession: StreamPlaybackSession,
     liveRoomMessageRepository: LiveRoomMessageRepository,
-    playerSettings: PlayerSettings
+    private val playerSettings: PlayerSettings
 ) : ViewModel() {
-
     val player = playbackSession.player
     val route: StateFlow<LiveRoute?> = playbackSession.currentTarget
         .map { target -> (target as? StreamPlaybackTarget.Live)?.route }
@@ -90,6 +89,17 @@ class LiveViewModel @Inject constructor(
 
     fun switchQuality(qn: Int) {
         playbackSession.switchLiveQuality(qn)
+    }
+
+    private var danmakuUpdateJob: Job? = null
+
+    fun setDanmakuEnabled(enabled: Boolean) {
+        val cur = settingsState.value.danmaku
+        if (cur.enabled == enabled) return
+        danmakuUpdateJob?.cancel()
+        danmakuUpdateJob = viewModelScope.launch {
+            playerSettings.updateDanmaku(cur.copy(enabled = enabled))
+        }
     }
 
     fun retry() {

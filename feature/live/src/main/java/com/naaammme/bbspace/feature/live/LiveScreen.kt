@@ -37,10 +37,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.window.core.layout.WindowWidthSizeClass
 import com.naaammme.bbspace.core.model.LiveRoomPanelState
 import com.naaammme.bbspace.feature.live.component.LivePlaybackBody
 import com.naaammme.bbspace.feature.live.player.LivePlayerPane
-import androidx.window.core.layout.WindowWidthSizeClass
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -141,9 +141,11 @@ fun LiveScreen(
 
         if (fullOn) {
             LivePlayerPane(
+                viewModel = viewModel,
                 route = route,
                 player = player,
                 playbackState = playbackState,
+                roomSession = roomSession,
                 isFull = true,
                 onToggleFull = toggleFull,
                 onTogglePlay = viewModel::togglePlayPause,
@@ -171,6 +173,7 @@ fun LiveScreen(
                 )
 
                 LivePlaybackBody(
+                    viewModel = viewModel,
                     route = route,
                     playbackState = playbackState,
                     roomSession = roomSession,

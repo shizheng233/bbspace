@@ -21,10 +21,12 @@ import androidx.compose.ui.unit.dp
 import com.naaammme.bbspace.core.model.LivePlaybackViewState
 import com.naaammme.bbspace.core.model.LiveRoomSessionState
 import com.naaammme.bbspace.core.model.LiveRoute
+import com.naaammme.bbspace.feature.live.LiveViewModel
 import com.naaammme.bbspace.feature.live.player.LivePlayerPane
 
 @Composable
 internal fun LivePlaybackBody(
+    viewModel: LiveViewModel,
     route: LiveRoute?,
     playbackState: LivePlaybackViewState,
     roomSession: LiveRoomSessionState,
@@ -51,9 +53,11 @@ internal fun LivePlaybackBody(
                     .background(Color.Black)
             ) {
                 LivePlayerPane(
+                    viewModel = viewModel,
                     route = route,
                     player = player,
                     playbackState = playbackState,
+                    roomSession = roomSession,
                     isFull = false,
                     onToggleFull = onToggleFull,
                     onTogglePlay = onTogglePlay,
@@ -77,9 +81,11 @@ internal fun LivePlaybackBody(
     } else {
         Column(modifier = modifier) {
             LivePlayerPane(
+                viewModel = viewModel,
                 route = route,
                 player = player,
                 playbackState = playbackState,
+                roomSession = roomSession,
                 isFull = false,
                 onToggleFull = onToggleFull,
                 onTogglePlay = onTogglePlay,

@@ -6,6 +6,7 @@ import com.naaammme.bbspace.core.model.DanmakuItem
 import com.naaammme.bbspace.core.model.DanmakuSessionState
 import com.naaammme.bbspace.core.model.DanmakuWindow
 import com.naaammme.bbspace.core.model.toDanmakuWindowId
+import master.flame.danmaku.danmaku.model.BaseDanmaku
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import master.flame.danmaku.api.DanmakuSegmentData
@@ -28,6 +29,8 @@ class DanmakuOverlayState internal constructor(
     private var lastPlaybackSpeed = 1f
     private var lastSeekEventId = 0L
     private var appliedWindowId: Long? = null
+    private var appliedWindowSignature: Int? = null
+    private val itemMapper = DefaultDanmakuItemMapper()
 
     fun prepare() {
         if (released.get()) return
@@ -81,6 +84,36 @@ class DanmakuOverlayState internal constructor(
                 timeProvider.getCurrentTimeMs()
             }
             timeProvider.overrideState(anchorMs, canPlay, clampedSpeed)
+        }
+        syncPlayback(
+            enabled = config.enabled,
+            hasSource = hasSource,
+            isPlaying = canPlay
+        )
+    }
+
+    fun syncLive(
+        config: DanmakuConfig,
+        isPlaying: Boolean,
+        speed: Float,
+        hasSource: Boolean
+    ) {
+        if (released.get()) return
+        val clampedSpeed = speed.coerceIn(0.25f, 3f)
+        val hasSpeedChange = lastPlaybackSpeed != clampedSpeed
+        lastPlaybackSpeed = clampedSpeed
+        applyConfig(config)
+        val canPlay = isPlaying
+        val needStateOverride = hasSpeedChange ||
+            !canPlay ||
+            !hasSource ||
+            (canPlay && lastPlayState?.isPlaying != true)
+        if (needStateOverride) {
+            timeProvider.overrideState(
+                positionMs = timeProvider.getCurrentTimeMs(),
+                isPlaying = canPlay,
+                speed = clampedSpeed
+            )
         }
         syncPlayback(
             enabled = config.enabled,
@@ -149,6 +182,26 @@ class DanmakuOverlayState internal constructor(
         }
     }
 
+    fun clearLiveDanmakus() {
+        if (released.get()) return
+        lastSourceKey = null
+        lastSeekEventId = 0L
+        pendingSeek = true
+        appliedWindowId = null
+        appliedWindowSignature = null
+        session.clearSegments()
+        danmakuCtrl.clearDanmakusOnScreen()
+        danmakuCtrl.forceRender()
+    }
+
+    fun appendDanmaku(item: DanmakuItem) {
+        if (released.get()) return
+        val danmaku = itemMapper.map(item, danmakuContext) ?: return
+        danmaku.setTime(danmaku.time.coerceAtLeast(timeProvider.getCurrentTimeMs()) + LIVE_DANMAKU_LEAD_MS)
+        danmaku.priority = LIVE_DANMAKU_PRIORITY
+        danmakuCtrl.addDanmaku(danmaku)
+    }
+
     private fun syncSource(sourceKey: String?) {
         if (lastSourceKey == sourceKey) return
 
@@ -156,6 +209,7 @@ class DanmakuOverlayState internal constructor(
         lastSeekEventId = 0L
         pendingSeek = true
         appliedWindowId = null
+        appliedWindowSignature = null
         session.clearSegments()
     }
 
@@ -179,18 +233,21 @@ class DanmakuOverlayState internal constructor(
         if (targetWindow == null) {
             if (requireTargetWindow || appliedWindowId != null) {
                 appliedWindowId = null
+                appliedWindowSignature = null
                 session.clearSegments()
             }
             pendingSeek = true
             return
         }
-        if (appliedWindowId == targetWindow.id) {
+        val nextSignature = targetWindow.items.windowSignature()
+        if (appliedWindowId == targetWindow.id && appliedWindowSignature == nextSignature) {
             return
         }
         session.replaceSegments(
             listOf(DanmakuSegmentData(targetWindow.id, targetWindow.items))
         )
         appliedWindowId = targetWindow.id
+        appliedWindowSignature = nextSignature
     }
 
     private fun consumeSeekEvent(seekEventId: Long): Boolean {
@@ -202,6 +259,15 @@ class DanmakuOverlayState internal constructor(
     }
 }
 
+private fun List<DanmakuItem>.windowSignature(): Int {
+    var result = size
+    for (item in this) {
+        result = 31 * result + item.id.hashCode()
+        result = 31 * result + item.progressMs
+    }
+    return result
+}
+
 private data class DanmakuCfgState(
     val config: DanmakuConfig
 )
@@ -211,3 +277,6 @@ private data class DanmakuPlayState(
     val hasSource: Boolean,
     val isPlaying: Boolean
 )
+
+private const val LIVE_DANMAKU_LEAD_MS = 1_200L
+private const val LIVE_DANMAKU_PRIORITY: Byte = 1
