@@ -10,12 +10,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,7 +47,32 @@ internal fun LiveDetailPane(
     val timeFmt = remember {
         DateFormat.getTimeInstance(DateFormat.SHORT)
     }
+    val listState = rememberLazyListState()
+    val messages = roomSession.messages
+    var followNew by remember { mutableStateOf(true) }
+
+    LaunchedEffect(messages.size) {
+        if (followNew) {
+            val total = listState.layoutInfo.totalItemsCount
+            if (total > 0) {
+                listState.scrollToItem(total - 1)
+            }
+        }
+    }
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .collect { scrolling ->
+                if (!scrolling) {
+                    val layout = listState.layoutInfo
+                    val lastVisibleIdx = layout.visibleItemsInfo.lastOrNull()?.index ?: -1
+                    followNew = lastVisibleIdx >= layout.totalItemsCount - 1
+                }
+            }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = modifier
             .navigationBarsPadding()
             .padding(horizontal = horizontalPad, vertical = 14.dp),
@@ -76,13 +107,13 @@ internal fun LiveDetailPane(
             )
         }
 
-        if (roomSession.messages.isEmpty()) {
+        if (messages.isEmpty() && roomSession.status == LiveRoomSessionStatus.Running) {
             item("empty_msg") {
-                EmptyMessageCard(roomSession.status)
+                EmptyMessageCard()
             }
-        } else {
+        } else if (messages.isNotEmpty()) {
             liveMessageItems(
-                messages = roomSession.messages,
+                messages = messages,
                 timeFmt = timeFmt
             )
         }
@@ -159,19 +190,14 @@ private fun LiveMetaSection(
 }
 
 @Composable
-private fun EmptyMessageCard(
-    status: LiveRoomSessionStatus
-) {
+private fun EmptyMessageCard() {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.medium
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            text = if (status == LiveRoomSessionStatus.Running) {
-                "暂时还没有收到弹幕"
-            } else {
-                "正在等待直播消息"
-            },
+            text = "暂时还没有收到弹幕",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
@@ -265,6 +291,7 @@ private fun LiveMessageCard(
                 Text(
                     text = headText,
                     style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

@@ -6,7 +6,7 @@ import com.naaammme.bbspace.core.model.LiveRecommendItem
 @Immutable
 data class HomeLiveUiState(
     val items: List<LiveRecommendItem> = emptyList(),
-    val isRefreshing: Boolean = false,
+    val isRefreshing: Boolean = true,
     val isLoadingMore: Boolean = false,
     val errorMessage: String? = null
 )

@@ -30,12 +30,11 @@ class HomeLiveViewModel @Inject constructor(
     private var hasLoaded = false
 
     fun ensureLoaded() {
-        if (hasLoaded || _uiState.value.isRefreshing) return
+        if (hasLoaded) return
         refresh()
     }
 
     fun refresh() {
-        if (_uiState.value.isRefreshing) return
         viewModelScope.launch {
             try {
                 _uiState.update {
