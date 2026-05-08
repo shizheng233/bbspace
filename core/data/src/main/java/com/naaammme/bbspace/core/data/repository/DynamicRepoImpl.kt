@@ -27,6 +27,8 @@ import com.naaammme.bbspace.core.model.DynamicItem as DynamicFeedItem
 import com.naaammme.bbspace.core.model.DynamicPage
 import com.naaammme.bbspace.core.model.DynamicRefresh
 import com.naaammme.bbspace.core.model.DynamicStats
+import com.naaammme.bbspace.core.model.DynamicUpItem
+import com.naaammme.bbspace.core.model.DynamicUpList
 import com.naaammme.bbspace.core.model.LiveRoute
 import com.naaammme.bbspace.core.model.LiveRouteTool
 import com.naaammme.bbspace.core.model.SpaceRoute
@@ -87,6 +89,7 @@ class DynamicRepoImpl @Inject constructor(
         val list = reply.dynamicList
         return DynamicPage(
             items = list.listList.mapNotNull(::mapItem),
+            upList = mapUpList(reply),
             cursor = DynamicCursor(
                 historyOffset = list.historyOffset,
                 updateBaseline = list.updateBaseline,
@@ -95,6 +98,27 @@ class DynamicRepoImpl @Inject constructor(
             ),
             hasMore = list.hasMore,
             updateNum = list.updateNum
+        )
+    }
+
+    private fun mapUpList(reply: DynAllReply): DynamicUpList? {
+        val upList = reply.upList
+        val items = upList.listList.mapNotNull { item ->
+            val uid = item.uid
+            val name = item.name.ifBlank { return@mapNotNull null }
+            if (uid <= 0L) return@mapNotNull null
+            DynamicUpItem(
+                uid = uid,
+                name = name,
+                face = item.face.toHttps(),
+                hasUpdate = item.hasUpdate,
+                trackId = item.trackId.blankToNull()
+            )
+        }
+        if (items.isEmpty()) return null
+        return DynamicUpList(
+            title = upList.title.blankToNull(),
+            items = items
         )
     }
 

@@ -18,9 +18,25 @@ enum class DynamicRefresh {
 @Immutable
 data class DynamicPage(
     val items: List<DynamicItem>,
+    val upList: DynamicUpList? = null,
     val cursor: DynamicCursor,
     val hasMore: Boolean,
     val updateNum: Long
+)
+
+@Immutable
+data class DynamicUpList(
+    val title: String?,
+    val items: List<DynamicUpItem>
+)
+
+@Immutable
+data class DynamicUpItem(
+    val uid: Long,
+    val name: String,
+    val face: String?,
+    val hasUpdate: Boolean,
+    val trackId: String?
 )
 
 @Immutable

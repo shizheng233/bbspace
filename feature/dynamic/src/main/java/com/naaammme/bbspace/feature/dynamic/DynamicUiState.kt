@@ -3,9 +3,11 @@ package com.naaammme.bbspace.feature.dynamic
 import androidx.compose.runtime.Immutable
 import com.naaammme.bbspace.core.model.DynamicCursor
 import com.naaammme.bbspace.core.model.DynamicItem
+import com.naaammme.bbspace.core.model.DynamicUpList
 
 @Immutable
 data class DynamicUiState(
+    val upList: DynamicUpList? = null,
     val items: List<DynamicItem> = emptyList(),
     val cursor: DynamicCursor = DynamicCursor(),
     val isLoading: Boolean = false,

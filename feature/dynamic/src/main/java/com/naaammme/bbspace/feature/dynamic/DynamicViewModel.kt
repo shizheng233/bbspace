@@ -73,6 +73,7 @@ class DynamicViewModel @Inject constructor(
             )
             _uiState.update {
                 it.copy(
+                    upList = page.upList ?: it.upList,
                     items = if (reset) page.items else it.items.mergePage(page.items),
                     cursor = page.cursor,
                     isLoading = false,

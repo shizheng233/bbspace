@@ -41,12 +41,14 @@ import com.naaammme.bbspace.core.designsystem.component.DynamicCardSkeleton
 import com.naaammme.bbspace.core.model.DynamicBody
 import com.naaammme.bbspace.core.model.DynamicImage
 import com.naaammme.bbspace.core.model.DynamicItem
+import com.naaammme.bbspace.core.model.DynamicUpList
 import com.naaammme.bbspace.core.model.LiveRoute
 import com.naaammme.bbspace.core.model.SpaceRoute
 import com.naaammme.bbspace.core.model.VideoTarget
 
 @Composable
 fun DynamicFeed(
+    upList: DynamicUpList?,
     items: List<DynamicItem>,
     listState: LazyListState,
     isLoadingMore: Boolean,
@@ -64,6 +66,18 @@ fun DynamicFeed(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        upList?.let { data ->
+            item(
+                key = "dynamic_up_list",
+                contentType = "dynamic_up_list"
+            ) {
+                DynamicUpListRow(
+                    data = data,
+                    onOpenSpace = onOpenSpace
+                )
+            }
+        }
+
         items(
             items = items,
             key = { it.id },
@@ -99,6 +113,68 @@ fun DynamicFeed(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DynamicUpListRow(
+    data: DynamicUpList,
+    onOpenSpace: (SpaceRoute) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        data.title?.let { title ->
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(
+                items = data.items,
+                key = { it.uid }
+            ) { item ->
+                DynamicUpItem(
+                    face = item.face,
+                    name = item.name,
+                    onClick = {
+                        onOpenSpace(SpaceRoute(mid = item.uid, name = item.name))
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DynamicUpItem(
+    face: String?,
+    name: String,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(68.dp)
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Avatar(
+            url = face,
+            contentDescription = name
+        )
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

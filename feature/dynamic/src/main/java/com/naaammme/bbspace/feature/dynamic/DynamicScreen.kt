@@ -80,6 +80,7 @@ fun DynamicScreen(
 
             else -> {
                 DynamicFeed(
+                    upList = state.upList,
                     items = state.items,
                     listState = listState,
                     isLoadingMore = state.isLoadingMore,
