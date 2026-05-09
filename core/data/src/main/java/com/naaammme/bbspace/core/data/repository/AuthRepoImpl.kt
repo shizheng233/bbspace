@@ -6,6 +6,8 @@ import com.naaammme.bbspace.core.data.CacheManager
 import com.naaammme.bbspace.core.model.Cookie
 import com.naaammme.bbspace.core.model.HdAccessGrant
 import com.naaammme.bbspace.core.model.LoginCredential
+import com.naaammme.bbspace.core.model.CountryCode
+import com.naaammme.bbspace.core.model.CountryListResponse
 import com.naaammme.bbspace.core.model.QrCodeData
 import com.naaammme.bbspace.core.model.SmsCodeResult
 import com.naaammme.bbspace.core.model.User
@@ -49,6 +51,7 @@ class AuthRepoImpl @Inject constructor(
 
         private const val SMS_SEND_ENDPOINT = "/x/passport-login/sms/send"
         private const val SMS_LOGIN_ENDPOINT = "/x/passport-login/login/sms"
+        private const val COUNTRY_CODE_ENDPOINT = "/x/passport-login/country"
         private const val PRE_CAPTURE_ENDPOINT = "/x/safecenter/captcha/pre"
     }
 
@@ -396,6 +399,30 @@ class AuthRepoImpl @Inject constructor(
             expiresIn = expiresIn,
             cookies = cookies
         )
+    }
+
+    override suspend fun getCountryCodes(): Result<CountryListResponse> = runCatching {
+        val ts = System.currentTimeMillis() / 1000
+        val json = restClient.getSigned(
+            url = "${BiliConstants.BASE_URL_PASSPORT}$COUNTRY_CODE_ENDPOINT",
+            params = restParamBuilder.passport(BiliRestProfile.SMS, ts),
+            profile = BiliRestProfile.SMS
+        )
+        val data = json.getJSONObject("data")
+        val defaultJson = data.getJSONObject("default")
+        val default = CountryCode(
+            countryCode = defaultJson.getInt("country_code"),
+            cname = defaultJson.getString("cname")
+        )
+        val listArray = data.getJSONArray("list")
+        val list = (0 until listArray.length()).map { i ->
+            val item = listArray.getJSONObject(i)
+            CountryCode(
+                countryCode = item.getInt("country_code"),
+                cname = item.getString("cname")
+            )
+        }
+        CountryListResponse(default = default, list = list)
     }
 
     private fun generateLoginSessionId(): String {

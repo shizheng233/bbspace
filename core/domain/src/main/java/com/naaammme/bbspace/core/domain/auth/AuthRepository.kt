@@ -1,5 +1,6 @@
 package com.naaammme.bbspace.core.domain.auth
 
+import com.naaammme.bbspace.core.model.CountryListResponse
 import com.naaammme.bbspace.core.model.HdAccessGrant
 import com.naaammme.bbspace.core.model.LoginCredential
 import com.naaammme.bbspace.core.model.QrCodeData
@@ -37,4 +38,6 @@ interface AuthRepository {
     suspend fun loginBySms(
         tel: String, cid: Int, code: String, captchaKey: String
     ): Result<LoginCredential>
+
+    suspend fun getCountryCodes(): Result<CountryListResponse>
 }

@@ -27,3 +27,13 @@ data class SmsCodeResult(
     val geeChallenge: String = "",
     val recaptchaToken: String = ""
 )
+
+data class CountryCode(
+    val countryCode: Int,
+    val cname: String
+)
+
+data class CountryListResponse(
+    val default: CountryCode,
+    val list: List<CountryCode>
+)

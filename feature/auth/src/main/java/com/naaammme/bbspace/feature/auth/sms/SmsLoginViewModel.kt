@@ -3,6 +3,7 @@ package com.naaammme.bbspace.feature.auth.sms
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naaammme.bbspace.core.domain.auth.AuthRepository
+import com.naaammme.bbspace.core.model.CountryCode
 import com.naaammme.bbspace.core.model.GeetestResult
 import com.naaammme.bbspace.core.model.SmsLoginState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,7 +34,35 @@ class SmsLoginViewModel @Inject constructor(
     private var pendingTel = ""
     private var pendingCid = 86
 
-    fun sendSms(tel: String, cid: Int = 86) {
+    private val _countryList = MutableStateFlow<List<CountryCode>>(emptyList())
+    val countryList: StateFlow<List<CountryCode>> = _countryList.asStateFlow()
+
+    private val _selectedCountry = MutableStateFlow(CountryCode(countryCode = 86, cname = "中国大陆"))
+    val selectedCountry: StateFlow<CountryCode> = _selectedCountry.asStateFlow()
+
+    private val _loadingCountries = MutableStateFlow(false)
+    val loadingCountries: StateFlow<Boolean> = _loadingCountries.asStateFlow()
+
+    fun fetchCountryCodes() {
+        if (_countryList.value.isNotEmpty()) return
+        viewModelScope.launch {
+            _loadingCountries.value = true
+            authRepo.getCountryCodes()
+                .onSuccess { response ->
+                    _countryList.value = response.list
+                    _selectedCountry.value = response.default
+                }
+                .onFailure { /* 失败保持默认 +86 */ }
+            _loadingCountries.value = false
+        }
+    }
+
+    fun selectCountry(country: CountryCode) {
+        _selectedCountry.value = country
+    }
+
+    fun sendSms(tel: String) {
+        val cid = _selectedCountry.value.countryCode
         pendingTel = tel
         pendingCid = cid
         doSendSms(tel, cid)
@@ -78,7 +107,8 @@ class SmsLoginViewModel @Inject constructor(
         )
     }
 
-    fun login(tel: String, cid: Int = 86, code: String) {
+    fun login(tel: String, code: String) {
+        val cid = _selectedCountry.value.countryCode
         val captchaKey = (_state.value as? SmsLoginState.SmsSent)?.captchaKey ?: _lastCaptchaKey.value
         if (captchaKey.isEmpty()) return
         viewModelScope.launch {

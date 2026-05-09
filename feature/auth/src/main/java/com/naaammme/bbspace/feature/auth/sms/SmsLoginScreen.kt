@@ -1,11 +1,13 @@
 package com.naaammme.bbspace.feature.auth.sms
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -29,9 +31,13 @@ fun SmsLoginScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val countdown by viewModel.countdown.collectAsStateWithLifecycle()
     val lastCaptchaKey by viewModel.lastCaptchaKey.collectAsStateWithLifecycle()
+    val countryList by viewModel.countryList.collectAsStateWithLifecycle()
+    val selectedCountry by viewModel.selectedCountry.collectAsStateWithLifecycle()
+    val loadingCountries by viewModel.loadingCountries.collectAsStateWithLifecycle()
 
     var phone by rememberSaveable { mutableStateOf("") }
     var smsCode by rememberSaveable { mutableStateOf("") }
+    var countryDropdownExpanded by remember { mutableStateOf(false) }
 
     // 极验弹窗需要的 token
     var geetestToken by remember { mutableStateOf("") }
@@ -81,17 +87,59 @@ fun SmsLoginScreen(
         ) {
             Spacer(modifier = Modifier.height(32.dp))
 
-            OutlinedTextField(
-                value = phone,
-                onValueChange = { phone = it.filter { c -> c.isDigit() } },
-                label = { Text("手机号") },
-                prefix = { Text("+86 ") }, // TODO: 通过 /x/passport-login/country? 获取国家码
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Box {
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it.filter { c -> c.isDigit() } },
+                    label = { Text("手机号") },
+                    prefix = {
+                        Row(
+                            modifier = Modifier.clickable {
+                                countryDropdownExpanded = true
+                                viewModel.fetchCountryCodes()
+                            },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "+${selectedCountry.countryCode}",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = "选择国家码",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-
+                DropdownMenu(
+                    expanded = countryDropdownExpanded,
+                    onDismissRequest = { countryDropdownExpanded = false }
+                ) {
+                    if (loadingCountries) {
+                        DropdownMenuItem(
+                            text = { Text("加载中...") },
+                            onClick = {}
+                        )
+                    } else {
+                        countryList.forEach { country ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text("+${country.countryCode} ${country.cname}")
+                                },
+                                onClick = {
+                                    viewModel.selectCountry(country)
+                                    countryDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -112,11 +160,12 @@ fun SmsLoginScreen(
 
                 val smsSent = state is SmsLoginState.SmsSent
                 val sending = state is SmsLoginState.SendingSms
-                val canSend = phone.length >= 11 && countdown == 0 && !sending
+                val canSend = selectedCountry.countryCode != 86 || phone.length >= 11
+                val sendEnabled = canSend && countdown == 0 && !sending
 
                 Button(
                     onClick = { viewModel.sendSms(phone) },
-                    enabled = canSend,
+                    enabled = sendEnabled,
                     modifier = Modifier.height(56.dp)
                 ) {
                     Text(
