@@ -89,6 +89,11 @@ fun VideoScreen(
     var isFull by rememberSaveable { mutableStateOf(false) }
     var downloadSheetOn by rememberSaveable { mutableStateOf(false) }
     val fullOn = hostExpanded && isFull
+    val isPortraitVideo = remember(playerState.currentStream) {
+        val width = playerState.currentStream?.width ?: return@remember false
+        val height = playerState.currentStream?.height ?: return@remember false
+        width > 0 && height > width
+    }
 
     val toggleFull = { isFull = !isFull }
     val handleBack = {
@@ -133,9 +138,13 @@ fun VideoScreen(
         }
     }
 
-    DisposableEffect(act, fullOn, settingsState.playback.autoRotateFullscreen) {
+    DisposableEffect(act, fullOn, settingsState.playback.autoRotateFullscreen, isPortraitVideo) {
         val a = act ?: return@DisposableEffect onDispose { }
-        a.requestedOrientation = if (fullOn && settingsState.playback.autoRotateFullscreen) {
+        a.requestedOrientation = if (
+            fullOn &&
+            settingsState.playback.autoRotateFullscreen &&
+            !isPortraitVideo
+        ) {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         } else {
             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED

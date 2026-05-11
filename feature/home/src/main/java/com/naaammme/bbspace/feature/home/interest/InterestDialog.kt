@@ -41,14 +41,14 @@ fun InterestDialog(
     var selectedAgeId by remember { mutableStateOf<Int?>(null) }
     val selected = remember { mutableStateOf(setOf<String>()) }
 
-    val interestResult = remember(data) {
+    val interestPosIds = remember(data) {
         data.items.joinToString(",") { item ->
             if (item.subItems.isEmpty()) "${item.id}"
             else item.subItems.joinToString(",") { sub -> "${item.id}.${sub.id}" }
         }
     }
 
-    fun buildPosIds(): String {
+    fun buildInterestResult(): String {
         val parts = mutableListOf<String>()
         data.items.forEach { item ->
             if (item.subItems.isEmpty()) {
@@ -143,7 +143,7 @@ fun InterestDialog(
 
             Spacer(Modifier.height(16.dp))
             Button(
-                onClick = { onConfirm(data.uniqueId, interestResult, buildPosIds()) },
+                onClick = { onConfirm(data.uniqueId, buildInterestResult(), interestPosIds) },
                 enabled = canConfirm,
                 modifier = Modifier.fillMaxWidth()
             ) {
