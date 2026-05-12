@@ -4,7 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naaammme.bbspace.core.common.log.Logger
 import com.naaammme.bbspace.core.data.AppSettings
+import com.naaammme.bbspace.core.data.PageActionTracker
+import com.naaammme.bbspace.core.domain.feed.FeedDislikeRepository
 import com.naaammme.bbspace.core.domain.feed.FeedRepository
+import com.naaammme.bbspace.core.model.FeedItem
+import com.naaammme.bbspace.core.model.ThreePointReason
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +22,9 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val feedRepo: FeedRepository,
-    private val appSettings: AppSettings
+    private val feedDislikeRepo: FeedDislikeRepository,
+    private val appSettings: AppSettings,
+    private val pageActionTracker: PageActionTracker
 ) : ViewModel() {
 
     companion object {
@@ -29,6 +35,14 @@ class HomeViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     private var flush = 0
+
+    private fun FeedItem.actionKey(): String {
+        return "$goto|$param|$idx"
+    }
+
+    fun refreshPageAction() {
+        pageActionTracker.refresh()
+    }
 
     init {
         viewModelScope.launch {
@@ -147,5 +161,64 @@ class HomeViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoadingMore = false) }
             }
         }
+    }
+
+    fun submitDislike(item: FeedItem, reason: ThreePointReason) {
+        val context = item.dislikeContext ?: run {
+            _uiState.update { it.copy(toastMessage = "当前卡片暂不支持此操作") }
+            return
+        }
+        val itemKey = item.actionKey()
+        viewModelScope.launch {
+            runCatching { feedDislikeRepo.dislike(context, reason) }
+                .onSuccess { result ->
+                    _uiState.update { state ->
+                        state.copy(
+                            dislikedReasons = state.dislikedReasons + (itemKey to reason.name),
+                            toastMessage = result.toast
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    Logger.e(TAG, e as? Exception) { "提交不感兴趣失败" }
+                    _uiState.update { state ->
+                        state.copy(
+                            toastMessage = e.message ?: "提交失败"
+                        )
+                    }
+                }
+        }
+    }
+
+    fun cancelDislike(item: FeedItem) {
+        val context = item.dislikeContext ?: run {
+            _uiState.update { it.copy(toastMessage = "当前卡片暂不支持此操作") }
+            return
+        }
+        val itemKey = item.actionKey()
+        viewModelScope.launch {
+            runCatching { feedDislikeRepo.cancelDislike(context) }
+                .onSuccess { result ->
+                    _uiState.update { state ->
+                        state.copy(
+                            dislikedReasons = state.dislikedReasons - itemKey,
+                            toastMessage = result.toast
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    Logger.e(TAG, e as? Exception) { "撤回不感兴趣失败" }
+                    _uiState.update { state ->
+                        state.copy(
+                            toastMessage = e.message ?: "撤回失败"
+                        )
+                    }
+                }
+        }
+    }
+
+    fun consumeToast() {
+        if (_uiState.value.toastMessage.isEmpty()) return
+        _uiState.update { it.copy(toastMessage = "") }
     }
 }

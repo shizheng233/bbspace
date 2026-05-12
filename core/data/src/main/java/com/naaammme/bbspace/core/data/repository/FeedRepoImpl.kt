@@ -6,6 +6,7 @@ import com.naaammme.bbspace.core.data.AuthStore
 import com.naaammme.bbspace.core.domain.feed.FeedRepository
 import com.naaammme.bbspace.core.domain.feed.FeedResult
 import com.naaammme.bbspace.core.model.DescButton
+import com.naaammme.bbspace.core.model.FeedDislikeContext
 import com.naaammme.bbspace.core.model.FeedArgs
 import com.naaammme.bbspace.core.model.FeedItem
 import com.naaammme.bbspace.core.model.FeedToast
@@ -19,13 +20,15 @@ import com.naaammme.bbspace.core.model.LiveRouteTool
 import com.naaammme.bbspace.core.model.PlayBiz
 import com.naaammme.bbspace.core.model.RcmdReason
 import com.naaammme.bbspace.core.model.ThreePointItem
+import com.naaammme.bbspace.core.model.ThreePointReasonKind
 import com.naaammme.bbspace.core.model.ThreePointReason
 import com.naaammme.bbspace.core.model.VideoTarget
+import com.naaammme.bbspace.core.model.VideoSrc
 import com.naaammme.bbspace.core.model.VideoTargetTool
-import java.net.URI
 import com.naaammme.bbspace.infra.network.BiliRestClient
 import com.naaammme.bbspace.infra.network.BiliRestParamBuilder
 import com.naaammme.bbspace.infra.network.BiliRestProfile
+import java.net.URI
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.first
@@ -208,6 +211,10 @@ class FeedRepoImpl @Inject constructor(
             ?: obj.optString("report_flow_data")
             .takeIf { it.isNotEmpty() }
             ?: VideoTargetTool.arg(uri, "report_flow_data")
+        val reportData = card.optString("report_data")
+            .takeIf { it.isNotEmpty() }
+            ?: obj.optString("report_data").takeIf { it.isNotEmpty() }
+            ?: VideoTargetTool.arg(uri, "report_data")
         val cardGoto = card.optString("card_goto").ifBlank { obj.optString("card_goto") }
         val goto = card.optString("goto").ifBlank { obj.optString("goto") }
         val param = card.optString("param").ifBlank { obj.optString("param") }
@@ -361,19 +368,75 @@ class FeedRepoImpl @Inject constructor(
                         title = item.optString("title"),
                         subtitle = item.optString("subtitle").takeIf { it.isNotEmpty() },
                         type = item.optString("type"),
-                        reasons = parseReasonArray(item.optJSONArray("reasons")),
-                        feedbacks = parseReasonArray(item.optJSONArray("feedbacks"))
+                        reasons = parseReasonArray(
+                            arr = item.optJSONArray("reasons"),
+                            kind = item.optString("type").toReasonKind()
+                        ),
+                        feedbacks = parseReasonArray(
+                            arr = item.optJSONArray("feedbacks"),
+                            kind = ThreePointReasonKind.FEEDBACK
+                        )
                     )
                 }
-            }
+            },
+            dislikeContext = buildDislikeContext(
+                param = param,
+                goto = goto,
+                src = target?.src,
+                reportData = reportData,
+                trackId = target?.src?.trackId,
+                args = args
+            )
         )
     }
 
-    private fun parseReasonArray(arr: org.json.JSONArray?): List<ThreePointReason>? {
+    private fun parseReasonArray(
+        arr: org.json.JSONArray?,
+        kind: ThreePointReasonKind
+    ): List<ThreePointReason>? {
         if (arr == null || arr.length() == 0) return null
         return (0 until arr.length()).mapNotNull { j ->
             val r = arr.optJSONObject(j) ?: return@mapNotNull null
-            ThreePointReason(id = r.optInt("id"), name = r.optString("name"), toast = r.optString("toast"))
+            ThreePointReason(
+                id = r.optInt("id"),
+                name = r.optString("name"),
+                toast = r.optString("toast"),
+                extra = r.optString("extend").takeIf { it.isNotEmpty() },
+                kind = kind
+            )
+        }
+    }
+
+    private fun buildDislikeContext(
+        param: String,
+        goto: String,
+        src: VideoSrc?,
+        reportData: String?,
+        trackId: String?,
+        args: JSONObject?
+    ): FeedDislikeContext? {
+        if (param.isBlank() || goto.isBlank()) return null
+        val upId = args?.optLong("up_id")?.takeIf { it > 0L }
+        val aid = args?.optLong("aid")?.takeIf { it > 0L }
+        val tid = args?.optLong("tid")?.takeIf { it > 0L }
+        return FeedDislikeContext(
+            id = param,
+            goto = goto,
+            spmid = src?.fromSpmid?.takeIf(String::isNotBlank) ?: VideoTargetTool.FROM_SPMID_FEED,
+            fromSpmid = src?.fromSpmid?.takeIf(String::isNotBlank) ?: VideoTargetTool.FROM_SPMID_FEED,
+            fromModule = null,
+            trackId = trackId?.takeIf { it.isNotBlank() },
+            reportData = reportData?.takeIf { it.isNotBlank() },
+            mid = upId,
+            rid = aid,
+            tagId = tid
+        )
+    }
+
+    private fun String.toReasonKind(): ThreePointReasonKind {
+        return when (this) {
+            "feedback" -> ThreePointReasonKind.FEEDBACK
+            else -> ThreePointReasonKind.DISLIKE
         }
     }
 

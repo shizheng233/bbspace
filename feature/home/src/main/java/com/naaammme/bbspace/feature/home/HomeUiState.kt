@@ -11,5 +11,6 @@ data class HomeUiState(
     val isRefreshing: Boolean = false,
     val isLoadingMore: Boolean = false,
     val errorMessage: String? = null,
-    val toastMessage: String = ""
+    val toastMessage: String = "",
+    val dislikedReasons: Map<String, String> = emptyMap()
 )

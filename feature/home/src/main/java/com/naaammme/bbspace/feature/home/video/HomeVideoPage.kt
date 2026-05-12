@@ -1,5 +1,6 @@
 package com.naaammme.bbspace.feature.home.video
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -20,11 +22,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.naaammme.bbspace.core.designsystem.component.AdaptiveMediaGrid
@@ -41,6 +44,7 @@ import com.naaammme.bbspace.core.model.FeedItem
 import com.naaammme.bbspace.core.model.LiveRoute
 import com.naaammme.bbspace.core.model.SpaceRoute
 import com.naaammme.bbspace.core.model.ThreePointItem
+import com.naaammme.bbspace.core.model.ThreePointReason
 import com.naaammme.bbspace.core.model.VideoTarget
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,12 +54,24 @@ fun HomeVideoPage(
     isRefreshing: Boolean,
     isLoadingMore: Boolean,
     errorMessage: String?,
+    toastMessage: String,
+    dislikedReasons: Map<String, String>,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
     onOpenVideo: (VideoTarget) -> Unit,
     onOpenSpace: (SpaceRoute) -> Unit,
-    onOpenLive: (LiveRoute) -> Unit
+    onOpenLive: (LiveRoute) -> Unit,
+    onDislike: (FeedItem, ThreePointReason) -> Unit,
+    onCancelDislike: (FeedItem) -> Unit,
+    onToastShown: () -> Unit
 ) {
+    val context = LocalContext.current
+    LaunchedEffect(toastMessage, context) {
+        if (toastMessage.isNotEmpty()) {
+            Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
+            onToastShown()
+        }
+    }
     AdaptiveMediaGrid(
         items = items,
         isRefreshing = isRefreshing,
@@ -73,6 +89,9 @@ fun HomeVideoPage(
         FeedCard(
             item = item,
             onOpenSpace = onOpenSpace,
+            dislikedReason = dislikedReasons[item.actionKey()],
+            onDislike = onDislike,
+            onCancelDislike = onCancelDislike,
             onClick = {
                 item.liveRoute?.let(onOpenLive)
                     ?: item.target?.let(onOpenVideo)
@@ -85,129 +104,157 @@ fun HomeVideoPage(
 private fun FeedCard(
     item: FeedItem,
     onOpenSpace: (SpaceRoute) -> Unit,
+    dislikedReason: String?,
+    onDislike: (FeedItem, ThreePointReason) -> Unit,
+    onCancelDislike: (FeedItem) -> Unit,
     onClick: () -> Unit
 ) {
+    val isDisliked = dislikedReason != null
+    val canOpen = !isDisliked && (item.target != null || item.liveRoute != null)
     Card(
         onClick = onClick,
-        enabled = item.target != null || item.liveRoute != null,
+        enabled = canOpen,
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column {
-            CoverImage(
-                url = item.cover,
-                contentDescription = item.title,
-                shape = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 10f)
-            ) {
-                val hasLeftText = item.coverLeftText1 != null
-                if (hasLeftText) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(4.dp)
-                            .padding(horizontal = 4.dp, vertical = 1.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        item.coverLeftText1?.let {
-                            Text(it, color = Color.White, style = MaterialTheme.typography.labelSmall)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                CoverImage(
+                    url = item.cover,
+                    contentDescription = item.title,
+                    shape = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 10f)
+                ) {
+                    val hasLeftText = item.coverLeftText1 != null
+                    if (hasLeftText) {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(4.dp)
+                                .padding(horizontal = 4.dp, vertical = 1.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            item.coverLeftText1?.let {
+                                Text(it, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
-                }
 
-                item.coverRightText?.let { text ->
-                    Text(
-                        text = text,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(4.dp)
-                            .padding(horizontal = 4.dp, vertical = 1.dp),
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    item.coverRightText?.let { text ->
+                        Text(
+                            text = text,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(4.dp)
+                                .padding(horizontal = 4.dp, vertical = 1.dp),
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
-            }
-            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                val spaceRoute = remember(item.args, item.target) {
-                    item.args?.let { args ->
-                        if (args.upId <= 0L && args.upName.isNullOrBlank()) {
-                            null
-                        } else {
-                            SpaceRoute(
-                                mid = args.upId,
-                                name = args.upName,
-                                fromViewAid = args.aid.takeIf { it > 0L }
-                                    ?: (item.target as? VideoTarget.Ugc)?.aid?.takeIf { it > 0L }
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                    val spaceRoute = remember(item.args, item.target) {
+                        item.args?.let { args ->
+                            if (args.upId <= 0L && args.upName.isNullOrBlank()) {
+                                null
+                            } else {
+                                SpaceRoute(
+                                    mid = args.upId,
+                                    name = args.upName,
+                                    fromViewAid = args.aid.takeIf { it > 0L }
+                                        ?: (item.target as? VideoTarget.Ugc)?.aid?.takeIf { it > 0L }
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = item.title,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val upNameClickModifier = remember(spaceRoute, isDisliked) {
+                            if (spaceRoute == null || isDisliked) Modifier
+                            else Modifier.clickable { onOpenSpace(spaceRoute) }
+                        }
+                        val upName = item.descButton?.text ?: item.args?.upName ?: ""
+                        if (upName.isNotEmpty()) {
+                            Text(
+                                text = upName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .then(upNameClickModifier)
+                            )
+                        }
+
+                        val threePoint = item.threePointV2
+                        if (!isDisliked && !threePoint.isNullOrEmpty()) {
+                            MoreMenu(
+                                item = item,
+                                items = threePoint,
+                                onDislike = onDislike
+                            )
+                        }
+                    }
+
+                    item.rcmdReason?.let { reason ->
+                        if (reason.text.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            val rcmdBgColor = MaterialTheme.colorScheme.secondaryContainer
+                            val rcmdBgShape = MaterialTheme.shapes.extraSmall
+                            Text(
+                                text = reason.text,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier
+                                    .background(rcmdBgColor, rcmdBgShape)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
-                Text(
-                    text = item.title,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyMedium
+            }
+
+            if (isDisliked) {
+                DislikedOverlay(
+                    reason = dislikedReason,
+                    onUndo = { onCancelDislike(item) },
+                    modifier = Modifier.fillMaxSize()
                 )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val upNameClickModifier = remember(spaceRoute) {
-                        if (spaceRoute == null) Modifier
-                        else Modifier.clickable { onOpenSpace(spaceRoute) }
-                    }
-                    val upName = item.descButton?.text ?: item.args?.upName ?: ""
-                    if (upName.isNotEmpty()) {
-                        Text(
-                            text = upName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .weight(1f)
-                                .then(upNameClickModifier)
-                        )
-                    }
-
-                    val threePoint = item.threePointV2
-                    if (!threePoint.isNullOrEmpty()) {
-                        MoreMenu(threePoint)
-                    }
-                }
-
-                item.rcmdReason?.let { reason ->
-                    if (reason.text.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        val rcmdBgColor = MaterialTheme.colorScheme.secondaryContainer
-                        val rcmdBgShape = MaterialTheme.shapes.extraSmall
-                        Text(
-                            text = reason.text,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier
-                                .background(rcmdBgColor, rcmdBgShape)
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
             }
         }
     }
 }
 
 @Composable
-private fun MoreMenu(items: List<ThreePointItem>) {
+private fun MoreMenu(
+    item: FeedItem,
+    items: List<ThreePointItem>,
+    onDislike: (FeedItem, ThreePointReason) -> Unit
+) {
     var show by remember { mutableStateOf(false) }
-    IconButton(onClick = { show = true }) {
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clickable { show = true },
+        contentAlignment = Alignment.Center
+    ) {
         Icon(Icons.Default.MoreVert, contentDescription = null)
     }
     if (show) {
@@ -218,21 +265,24 @@ private fun MoreMenu(items: List<ThreePointItem>) {
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    items.forEachIndexed { index, item ->
+                    items.forEachIndexed { index, menuItem ->
                         if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                         TextButton(
                             onClick = { show = false },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(item.title, style = MaterialTheme.typography.bodyLarge)
+                            Text(menuItem.title, style = MaterialTheme.typography.bodyLarge)
                         }
-                        val options = item.reasons.orEmpty() + item.feedbacks.orEmpty()
+                        val options = menuItem.reasons.orEmpty() + menuItem.feedbacks.orEmpty()
                         if (options.isNotEmpty()) {
                             options.chunked(2).forEach { pair ->
                                 Row(modifier = Modifier.fillMaxWidth()) {
                                     pair.forEach { reason ->
                                         TextButton(
-                                            onClick = { show = false },
+                                            onClick = {
+                                                show = false
+                                                onDislike(item, reason)
+                                            },
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             Text(
@@ -250,4 +300,36 @@ private fun MoreMenu(items: List<ThreePointItem>) {
             }
         )
     }
+}
+
+@Composable
+private fun DislikedOverlay(
+    reason: String,
+    onUndo: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 12.dp, vertical = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = reason,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            TextButton(onClick = onUndo) {
+                Text("撤回")
+            }
+        }
+    }
+}
+
+private fun FeedItem.actionKey(): String {
+    return "$goto|$param|$idx"
 }

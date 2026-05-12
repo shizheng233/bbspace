@@ -20,7 +20,8 @@ data class FeedItem(
     val descButton: DescButton?,
     val rcmdReason: RcmdReason?,
     val args: FeedArgs?,
-    val threePointV2: List<ThreePointItem>?
+    val threePointV2: List<ThreePointItem>?,
+    val dislikeContext: FeedDislikeContext?
 )
 
 @Immutable
@@ -60,7 +61,28 @@ data class ThreePointItem(
 data class ThreePointReason(
     val id: Int,
     val name: String,
-    val toast: String
+    val toast: String,
+    val extra: String?,
+    val kind: ThreePointReasonKind
+)
+
+enum class ThreePointReasonKind {
+    DISLIKE,
+    FEEDBACK
+}
+
+@Immutable
+data class FeedDislikeContext(
+    val id: String,
+    val goto: String,
+    val spmid: String,
+    val fromSpmid: String,
+    val fromModule: String?,
+    val trackId: String?,
+    val reportData: String?,
+    val mid: Long?,
+    val rid: Long?,
+    val tagId: Long?
 )
 
 data class FeedToast(

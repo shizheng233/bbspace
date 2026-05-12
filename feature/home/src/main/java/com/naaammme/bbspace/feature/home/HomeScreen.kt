@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +69,9 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state = viewModel.uiState.collectAsStateWithLifecycle().value
+    LaunchedEffect(Unit) {
+        viewModel.refreshPageAction()
+    }
     val pagerState = rememberPagerState(initialPage = homeDefaultPage, pageCount = { homeTabs.size })
     val scope = rememberCoroutineScope()
 
@@ -119,11 +123,16 @@ fun HomeScreen(
                     isRefreshing = state.isRefreshing,
                     isLoadingMore = state.isLoadingMore,
                     errorMessage = state.errorMessage,
+                    toastMessage = state.toastMessage,
+                    dislikedReasons = state.dislikedReasons,
                     onRefresh = viewModel::refresh,
                     onLoadMore = viewModel::loadMore,
                     onOpenVideo = onOpenVideo,
                     onOpenSpace = onOpenSpace,
-                    onOpenLive = onOpenLive
+                    onOpenLive = onOpenLive,
+                    onDislike = viewModel::submitDislike,
+                    onCancelDislike = viewModel::cancelDislike,
+                    onToastShown = viewModel::consumeToast
                 )
 
                 else -> HomeLivePage(
