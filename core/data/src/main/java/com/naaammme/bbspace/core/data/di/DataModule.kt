@@ -23,6 +23,7 @@ import com.naaammme.bbspace.core.data.repository.VideoDetailRepoImpl
 import com.naaammme.bbspace.core.data.repository.ListenRepoImpl
 import com.naaammme.bbspace.core.data.repository.VideoPlayerRepoImpl
 import com.naaammme.bbspace.core.domain.auth.AuthRepository
+import com.naaammme.bbspace.core.domain.ImRepository
 import com.naaammme.bbspace.core.domain.listen.ListenRepository
 import com.naaammme.bbspace.core.domain.comment.CommentRepository
 import com.naaammme.bbspace.core.domain.dynamic.DynamicRepository
@@ -50,6 +51,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import com.naaammme.bbspace.core.data.repository.InterestRepoImpl
+import com.naaammme.bbspace.core.data.repository.ImRepoImpl
 import com.naaammme.bbspace.core.data.repository.WatchLaterRepoImpl
 import com.naaammme.bbspace.core.domain.feed.InterestRepository
 
@@ -151,4 +153,8 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindListenRepo(impl: ListenRepoImpl): ListenRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindImRepo(impl: ImRepoImpl): ImRepository
 }

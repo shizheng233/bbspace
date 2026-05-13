@@ -52,6 +52,7 @@ import com.naaammme.bbspace.feature.history.navigation.navigateToHistory
 import com.naaammme.bbspace.feature.history.navigation.navigateToWatchLater
 import com.naaammme.bbspace.feature.history.navigation.watchLaterScreen
 import com.naaammme.bbspace.feature.home.HomeScreen
+import com.naaammme.bbspace.feature.im.ImScreen
 import com.naaammme.bbspace.feature.listen.navigation.listenDetailScreen
 import com.naaammme.bbspace.feature.listen.navigation.navigateToListenDetail
 import com.naaammme.bbspace.feature.live.LiveViewModel
@@ -366,7 +367,7 @@ private fun MainTabsScaffold(
                                 onOpenLive = onNavigateToLive,
                                 onOpenDynamic = onNavigateToDynamicDetail
                             )
-                            TopLevelRoute.MESSAGE -> PlaceholderScreen("消息")
+                            TopLevelRoute.MESSAGE -> ImScreen()
                             TopLevelRoute.PROFILE -> UserScreen(
                                 onNavigateToAccount = onNavigateToAccount,
                                 onNavigateToSettings = onNavigateToSettings,
@@ -383,12 +384,3 @@ private fun MainTabsScaffold(
     }
 }
 
-@Composable
-private fun PlaceholderScreen(title: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(title)
-    }
-}

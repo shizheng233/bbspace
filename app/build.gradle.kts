@@ -96,6 +96,7 @@ dependencies {
     implementation(project(":feature:download"))
     implementation(project(":feature:webview"))
     implementation(project(":feature:listen"))
+    implementation(project(":feature:im"))
 
     implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
