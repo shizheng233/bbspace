@@ -61,8 +61,8 @@ fun HomeLivePage(
         loadingContent = {
             VideoGridCardSkeleton()
         },
-        headerContent = {
-            state.upList?.let { upList ->
+        headerContent = state.upList?.let { upList ->
+            {
                 UpListRow(
                     title = upList.title,
                     items = upList.items,

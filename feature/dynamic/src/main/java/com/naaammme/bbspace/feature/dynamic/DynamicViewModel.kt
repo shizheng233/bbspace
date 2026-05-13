@@ -3,6 +3,7 @@ package com.naaammme.bbspace.feature.dynamic
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naaammme.bbspace.core.common.log.Logger
+import com.naaammme.bbspace.core.domain.auth.AuthRepository
 import com.naaammme.bbspace.core.domain.dynamic.DynamicRepository
 import com.naaammme.bbspace.core.model.DynamicCursor
 import com.naaammme.bbspace.core.model.DynamicItem
@@ -17,19 +18,40 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class DynamicViewModel @Inject constructor(
+    private val authRepo: AuthRepository,
     private val repo: DynamicRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(DynamicUiState())
+    private val _uiState = MutableStateFlow(
+        DynamicUiState(isLoggedIn = authRepo.currentMidFlow.value > 0)
+    )
     val uiState: StateFlow<DynamicUiState> = _uiState.asStateFlow()
+    private var authVersion = 0L
 
     init {
-        refresh()
+        viewModelScope.launch {
+            authRepo.currentMidFlow.collect { mid ->
+                authVersion += 1L
+                if (mid > 0) {
+                    _uiState.update {
+                        it.copy(
+                            isLoggedIn = true,
+                            errorMessage = null,
+                            loadMoreError = null
+                        )
+                    }
+                    if (_uiState.value.items.isNotEmpty()) return@collect
+                    refresh()
+                } else {
+                    _uiState.value = DynamicUiState(isLoggedIn = false)
+                }
+            }
+        }
     }
 
     fun refresh() {
         val state = _uiState.value
-        if (state.isLoading || state.isRefreshing || state.isLoadingMore) return
+        if (!state.isLoggedIn || state.isLoading || state.isRefreshing || state.isLoadingMore) return
         val hasItems = state.items.isNotEmpty()
         _uiState.update {
             it.copy(
@@ -37,8 +59,7 @@ class DynamicViewModel @Inject constructor(
                 isRefreshing = hasItems,
                 isLoadingMore = false,
                 errorMessage = null,
-                errorOnLoadMore = false,
-                cursor = DEFAULT_CURSOR
+                loadMoreError = null
             )
         }
         viewModelScope.launch {
@@ -52,8 +73,7 @@ class DynamicViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 isLoadingMore = true,
-                errorMessage = null,
-                errorOnLoadMore = false
+                loadMoreError = null
             )
         }
         viewModelScope.launch {
@@ -66,12 +86,14 @@ class DynamicViewModel @Inject constructor(
         reset: Boolean
     ) {
         val state = _uiState.value
+        val version = authVersion
         try {
             val page = repo.fetchAll(
                 cursor = if (reset) DEFAULT_CURSOR else state.cursor,
                 refresh = refresh
             )
             _uiState.update {
+                if (version != authVersion || !it.isLoggedIn) return@update it
                 it.copy(
                     upList = page.upList ?: it.upList,
                     items = if (reset) page.items else it.items.mergePage(page.items),
@@ -81,19 +103,30 @@ class DynamicViewModel @Inject constructor(
                     isLoadingMore = false,
                     hasMore = page.hasMore,
                     errorMessage = null,
-                    errorOnLoadMore = false
+                    loadMoreError = null
                 )
             }
         } catch (e: Exception) {
+            if (version != authVersion) return
             Logger.e(TAG, e) { "加载动态失败" }
             _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    isRefreshing = false,
-                    isLoadingMore = false,
-                    errorMessage = e.message ?: "加载动态失败",
-                    errorOnLoadMore = !reset
-                )
+                if (!it.isLoggedIn) return@update it
+                val msg = e.message ?: if (reset) "加载动态失败" else "加载更多动态失败"
+                if (reset) {
+                    it.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        isLoadingMore = false,
+                        errorMessage = msg
+                    )
+                } else {
+                    it.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        isLoadingMore = false,
+                        loadMoreError = msg
+                    )
+                }
             }
         }
     }

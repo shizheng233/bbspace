@@ -121,6 +121,7 @@ fun <T> AdaptiveMediaGrid(
                         emptyContent != null -> {
                             item(
                                 key = "empty",
+                                span = StaggeredGridItemSpan.FullLine,
                                 contentType = "empty"
                             ) {
                                 emptyContent()
@@ -131,6 +132,7 @@ fun <T> AdaptiveMediaGrid(
                             val err = errorMessage.orEmpty()
                             item(
                                 key = "error",
+                                span = StaggeredGridItemSpan.FullLine,
                                 contentType = "error"
                             ) {
                                 errorContent(err)

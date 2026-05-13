@@ -47,8 +47,9 @@ fun DynamicFeed(
     listState: LazyListState,
     isLoadingMore: Boolean,
     errorMessage: String?,
-    errorOnLoadMore: Boolean,
-    onRetry: () -> Unit,
+    loadMoreError: String?,
+    onRetryRefresh: () -> Unit,
+    onRetryLoadMore: () -> Unit,
     onOpenVideo: (VideoTarget) -> Unit,
     onOpenSpace: (SpaceRoute) -> Unit,
     onOpenLive: (LiveRoute) -> Unit,
@@ -110,8 +111,21 @@ fun DynamicFeed(
             ) {
                 DynamicError(
                     message = errorMessage,
-                    onRetry = onRetry,
-                    isLoadMore = errorOnLoadMore
+                    retryText = "点击重试",
+                    onRetry = onRetryRefresh
+                )
+            }
+        }
+
+        if (!isLoadingMore && loadMoreError != null) {
+            item(
+                key = "dynamic_load_more_error",
+                contentType = "error"
+            ) {
+                DynamicError(
+                    message = loadMoreError,
+                    retryText = "点击重试加载更多",
+                    onRetry = onRetryLoadMore
                 )
             }
         }
@@ -396,8 +410,8 @@ private fun DynamicText(text: String) {
 @Composable
 private fun DynamicError(
     message: String,
-    onRetry: () -> Unit,
-    isLoadMore: Boolean
+    retryText: String,
+    onRetry: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -415,7 +429,7 @@ private fun DynamicError(
                 color = MaterialTheme.colorScheme.error
             )
             Text(
-                text = if (isLoadMore) "点击重试加载更多" else "点击重试",
+                text = retryText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable(onClick = onRetry)

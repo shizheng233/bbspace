@@ -12,9 +12,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -26,8 +26,6 @@ import com.naaammme.bbspace.core.model.LiveRoute
 import com.naaammme.bbspace.core.model.SpaceRoute
 import com.naaammme.bbspace.core.model.VideoTarget
 import com.naaammme.bbspace.feature.dynamic.feed.DynamicFeed
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,24 +38,25 @@ fun DynamicScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    val uiState by rememberUpdatedState(state)
-
-    LaunchedEffect(listState) {
-        snapshotFlow {
+    val shouldLoadMore by remember(
+        state.items.size,
+        state.canLoadMore,
+        state.isLoadingMore,
+        state.loadMoreError,
+        listState
+    ) {
+        derivedStateOf {
             val total = listState.layoutInfo.totalItemsCount
             val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            total to last
+            state.canLoadMore &&
+                state.loadMoreError.isNullOrBlank() &&
+                total > 0 &&
+                last >= total - LOAD_MORE_TRIGGER_OFFSET
         }
-            .distinctUntilChanged()
-            .filter { (total, last) ->
-                uiState.canLoadMore &&
-                        !uiState.isLoadingMore &&
-                        total > 0 &&
-                        last >= total - LOAD_MORE_TRIGGER_OFFSET
-            }
-            .collect {
-                viewModel.loadMore()
-            }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) viewModel.loadMore()
     }
 
     Scaffold(
@@ -76,6 +75,13 @@ fun DynamicScreen(
                 .padding(padding)
         ) {
             when {
+                !state.isLoggedIn -> {
+                    DynamicEmptyState(
+                        text = "请先登录后查看动态",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
                 state.isLoading && state.items.isEmpty() -> {
                     DynamicFeedSkeleton(modifier = Modifier.fillMaxSize())
                 }
@@ -101,8 +107,9 @@ fun DynamicScreen(
                         listState = listState,
                         isLoadingMore = state.isLoadingMore,
                         errorMessage = state.errorMessage,
-                        errorOnLoadMore = state.errorOnLoadMore,
-                        onRetry = if (state.errorOnLoadMore) viewModel::loadMore else viewModel::refresh,
+                        loadMoreError = state.loadMoreError,
+                        onRetryRefresh = viewModel::refresh,
+                        onRetryLoadMore = viewModel::loadMore,
                         onOpenVideo = onOpenVideo,
                         onOpenSpace = onOpenSpace,
                         onOpenLive = onOpenLive,

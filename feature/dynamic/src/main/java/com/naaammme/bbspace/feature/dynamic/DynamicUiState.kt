@@ -15,8 +15,9 @@ data class DynamicUiState(
     val isLoadingMore: Boolean = false,
     val hasMore: Boolean = false,
     val errorMessage: String? = null,
-    val errorOnLoadMore: Boolean = false
+    val loadMoreError: String? = null,
+    val isLoggedIn: Boolean = true
 ) {
     val canLoadMore: Boolean
-        get() = hasMore && !isLoading && !isRefreshing && !isLoadingMore && !errorOnLoadMore
+        get() = hasMore && items.isNotEmpty() && !isLoading && !isRefreshing && !isLoadingMore
 }
