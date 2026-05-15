@@ -42,6 +42,7 @@ fun AudioVideoSettingsScreen(
     val forceHost by viewModel.forceHost.collectAsStateWithLifecycle()
     val needTrial by viewModel.needTrial.collectAsStateWithLifecycle()
     val preferredCodec by viewModel.preferredCodec.collectAsStateWithLifecycle()
+    val enableWebPlayback by viewModel.enableWebPlayback.collectAsStateWithLifecycle()
 
     var showVideoQualityDialog by remember { mutableStateOf(false) }
     var showAudioQualityDialog by remember { mutableStateOf(false) }
@@ -112,6 +113,13 @@ fun AudioVideoSettingsScreen(
                 title = "需要4k",
                 checked = needTrial,
                 onCheckedChange = { viewModel.updateNeedTrial(it) }
+            )
+
+            SettingSwitch(
+                title = "免登录看1080p",
+                subtitle = "打开就算不登录也能看1080p喵",
+                checked = enableWebPlayback,
+                onCheckedChange = { viewModel.updateEnableWebPlayback(it) }
             )
         }
 

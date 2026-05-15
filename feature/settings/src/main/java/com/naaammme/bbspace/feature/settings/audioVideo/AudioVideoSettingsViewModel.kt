@@ -50,6 +50,12 @@ class AudioVideoSettingsViewModel @Inject constructor(
         initialValue = 2
     )
 
+    val enableWebPlayback = appSettings.enableWebPlayback.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = true
+    )
+
     fun updateEnableHdrAnd8k(enabled: Boolean) {
         viewModelScope.launch {
             appSettings.updateEnableHdrAnd8k(enabled)
@@ -83,6 +89,12 @@ class AudioVideoSettingsViewModel @Inject constructor(
     fun updatePreferredCodec(codec: Int) {
         viewModelScope.launch {
             appSettings.updatePreferredCodec(codec)
+        }
+    }
+
+    fun updateEnableWebPlayback(enabled: Boolean) {
+        viewModelScope.launch {
+            appSettings.updateEnableWebPlayback(enabled)
         }
     }
 }

@@ -33,6 +33,7 @@ dependencies {
 
     implementation(project(":infra:crypto"))
     implementation(project(":infra:network-http"))
+    implementation(project(":infra:network-web"))
     implementation(project(":infra:network-grpc"))
     implementation(project(":infra:coldstart"))
     implementation(project(":infra:protobuf"))

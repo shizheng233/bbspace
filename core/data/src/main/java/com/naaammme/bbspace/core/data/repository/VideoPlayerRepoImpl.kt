@@ -12,6 +12,7 @@ import com.bapis.bilibili.playershared.ResponseUrl
 import com.bapis.bilibili.playershared.Stream
 import com.bapis.bilibili.playershared.StreamInfo
 import com.bapis.bilibili.playershared.VideoVod
+import com.naaammme.bbspace.core.common.AuthProvider
 import com.naaammme.bbspace.core.common.log.Logger
 import com.naaammme.bbspace.core.data.AppSettings
 import com.naaammme.bbspace.core.domain.player.VideoPlayerRepository
@@ -35,10 +36,15 @@ import javax.inject.Singleton
 @Singleton
 class VideoPlayerRepoImpl @Inject constructor(
     private val grpcClient: BiliGrpcClient,
-    private val appSettings: AppSettings
+    private val appSettings: AppSettings,
+    private val authProvider: AuthProvider,
+    private val webPlaybackResolver: VideoWebPlaybackResolver
 ) : VideoPlayerRepository {
 
     override suspend fun fetchPlaybackSource(request: PlaybackRequest): PlaybackSource {
+        if (shouldUseWebPlayback(request)) {
+            return webPlaybackResolver.fetchPlaybackSource(request)
+        }
         val reply = withContext(Dispatchers.IO) {
             val req = buildRequest(request)
             grpcClient.call(
@@ -48,6 +54,13 @@ class VideoPlayerRepoImpl @Inject constructor(
             )
         }
         return withContext(Dispatchers.Default) { mapReply(request, reply) }
+    }
+
+    private suspend fun shouldUseWebPlayback(request: PlaybackRequest): Boolean {
+        return authProvider.accessToken.isBlank() &&
+            appSettings.enableWebPlayback.first() &&
+            request.videoId.aid > 0L &&
+            request.videoId.cid > 0L
     }
 
     private suspend fun buildRequest(request: PlaybackRequest): PlayViewUniteReq {

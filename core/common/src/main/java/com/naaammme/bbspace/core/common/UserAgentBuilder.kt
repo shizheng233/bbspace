@@ -19,6 +19,11 @@ object UserAgentBuilder {
         return "Bilibili Freedoooooom/MarkII"
     }
 
+    fun buildWebUserAgent(): String {
+        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
     private fun buildBiliAppTail(model: String, osVer: String): String {
         return "os/android model/$model mobi_app/${BiliConstants.MOBI_APP} " +
                 "build/${BiliConstants.BUILD_STR} channel/${BiliConstants.CHANNEL} " +

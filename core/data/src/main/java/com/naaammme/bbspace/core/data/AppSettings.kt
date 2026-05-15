@@ -170,6 +170,7 @@ class AppSettings @Inject constructor(
     private val forceHostKey = intPreferencesKey("force_host")
     private val needTrialKey = booleanPreferencesKey("need_trial")
     private val preferredCodecKey = intPreferencesKey("preferred_codec_qn")
+    private val enableWebPlaybackKey = booleanPreferencesKey("enable_web_playback")
 
     val enableHdrAnd8k: Flow<Boolean> = context.appSettingsDataStore.data.map { it[enableHdrAnd8kKey] ?: false }
     val defaultVideoQuality: Flow<Int> = context.appSettingsDataStore.data.map { it[defaultVideoQualityKey] ?: 64 }
@@ -177,6 +178,7 @@ class AppSettings @Inject constructor(
     val forceHost: Flow<Int> = context.appSettingsDataStore.data.map { it[forceHostKey] ?: 0 }
     val needTrial: Flow<Boolean> = context.appSettingsDataStore.data.map { it[needTrialKey] ?: false }
     val preferredCodec: Flow<Int> = context.appSettingsDataStore.data.map { it[preferredCodecKey] ?: 2 }
+    val enableWebPlayback: Flow<Boolean> = context.appSettingsDataStore.data.map { it[enableWebPlaybackKey] ?: true }
 
     suspend fun updateEnableHdrAnd8k(enabled: Boolean) {
         context.appSettingsDataStore.edit { it[enableHdrAnd8kKey] = enabled }
@@ -200,6 +202,10 @@ class AppSettings @Inject constructor(
 
     suspend fun updatePreferredCodec(codec: Int) {
         context.appSettingsDataStore.edit { it[preferredCodecKey] = codec }
+    }
+
+    suspend fun updateEnableWebPlayback(enabled: Boolean) {
+        context.appSettingsDataStore.edit { it[enableWebPlaybackKey] = enabled }
     }
 
     suspend fun resetAllSettings() {

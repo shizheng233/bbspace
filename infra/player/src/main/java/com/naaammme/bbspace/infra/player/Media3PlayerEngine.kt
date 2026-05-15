@@ -46,13 +46,9 @@ class Media3PlayerEngine @Inject constructor(
 ) : PlayerEngine {
 
     private val appContext = context.applicationContext
-
-    private val upstreamDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
-        .setUserAgent(UserAgentBuilder.buildPlayerUserAgent())
-
-    private val dataSourceFactory = DefaultDataSource.Factory(appContext, upstreamDataSourceFactory)
-
-    private val mediaSourceFactory = ProgressiveMediaSource.Factory(dataSourceFactory)
+    private val appOkHttpClient = okHttpClient
+    private val plainOkHttpClient = OkHttpClient.Builder().build()
+    private val webRequestHeaders = mapOf("Referer" to "https://www.bilibili.com/")
 
     private val _player = MutableStateFlow<Player?>(null)
     override val player: StateFlow<Player?> = _player.asStateFlow()
@@ -310,6 +306,7 @@ class Media3PlayerEngine @Inject constructor(
     }
 
     private fun buildMediaSource(source: EngineSource): MediaSource {
+        val mediaSourceFactory = buildMediaSourceFactory(source)
         return when (source) {
             is EngineSource.LiveFlv -> {
                 val mediaItem = mediaItem(source.url, source)
@@ -346,6 +343,36 @@ class Media3PlayerEngine @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun buildMediaSourceFactory(source: EngineSource): ProgressiveMediaSource.Factory {
+        val isWebPlayback = source.usesWebPlaybackHeaders()
+        val userAgent = if (isWebPlayback) {
+            UserAgentBuilder.buildWebUserAgent()
+        } else {
+            UserAgentBuilder.buildPlayerUserAgent()
+        }
+        val upstreamFactory = OkHttpDataSource.Factory(
+            if (isWebPlayback) plainOkHttpClient else appOkHttpClient
+        ).setUserAgent(userAgent)
+        if (isWebPlayback) {
+            upstreamFactory.setDefaultRequestProperties(webRequestHeaders)
+        }
+        return ProgressiveMediaSource.Factory(
+            DefaultDataSource.Factory(appContext, upstreamFactory)
+        )
+    }
+
+    private fun EngineSource.usesWebPlaybackHeaders(): Boolean {
+        return when (this) {
+            is EngineSource.LiveFlv -> false
+            is EngineSource.Dash -> videoUrl.isWebPlaybackUrl() || audioUrl?.isWebPlaybackUrl() == true
+            is EngineSource.Progressive -> segments.any { it.url.isWebPlaybackUrl() }
+        }
+    }
+
+    private fun String.isWebPlaybackUrl(): Boolean {
+        return contains("platform=pc", ignoreCase = true)
     }
 
     private fun mediaItem(
