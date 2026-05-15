@@ -44,6 +44,7 @@ import com.naaammme.bbspace.core.model.LiveRoute
 import com.naaammme.bbspace.core.model.SpaceRoute
 import com.naaammme.bbspace.core.model.VideoTarget
 import com.naaammme.bbspace.core.model.listen.ListenItem
+import com.naaammme.bbspace.feature.home.article.HomeArticlePage
 import com.naaammme.bbspace.feature.home.interest.InterestDialog
 import com.naaammme.bbspace.feature.home.listen.ListenHomePage
 import com.naaammme.bbspace.feature.home.live.HomeLivePage
@@ -51,7 +52,7 @@ import com.naaammme.bbspace.feature.home.video.HomeVideoPage
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private val homeTabs = listOf("听视频", "推荐", "直播")
+private val homeTabs = listOf("听视频", "推荐", "直播", "专栏")
 private val homeProfileAvatarSize = 36.dp
 private val homeProfileIconSize = 20.dp
 private const val homeDefaultPage = 1
@@ -65,6 +66,7 @@ fun HomeScreen(
     onOpenVideo: (VideoTarget) -> Unit = {},
     onOpenSpace: (SpaceRoute) -> Unit = {},
     onOpenLive: (LiveRoute) -> Unit = {},
+    onOpenArticle: (String, Int) -> Unit = { _, _ -> },
     onOpenListenItem: (Long, Int, Long, String, String, String) -> Unit = { _, _, _, _, _, _ -> },
     viewModel: HomeViewModel = hiltViewModel()
 ) {
@@ -135,9 +137,15 @@ fun HomeScreen(
                     onToastShown = viewModel::consumeToast
                 )
 
-                else -> HomeLivePage(
+                2 -> HomeLivePage(
                     isActive = pagerState.currentPage == page,
                     onOpenLive = onOpenLive,
+                    onOpenSpace = onOpenSpace
+                )
+
+                else -> HomeArticlePage(
+                    isActive = pagerState.currentPage == page,
+                    onOpenArticle = onOpenArticle,
                     onOpenSpace = onOpenSpace
                 )
             }

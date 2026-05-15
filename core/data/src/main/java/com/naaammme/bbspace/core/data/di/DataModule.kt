@@ -7,6 +7,7 @@ import com.naaammme.bbspace.core.data.player.DownloadPlaybackControllerImpl
 import com.naaammme.bbspace.core.data.player.PlayerSettingsImpl
 import com.naaammme.bbspace.core.data.player.StreamPlaybackSessionImpl
 import com.naaammme.bbspace.core.data.repository.AuthRepoImpl
+import com.naaammme.bbspace.core.data.repository.ArticleRecommendRepoImpl
 import com.naaammme.bbspace.core.data.repository.CommentRepoImpl
 import com.naaammme.bbspace.core.data.repository.DynamicRepoImpl
 import com.naaammme.bbspace.core.data.repository.FeedDislikeRepoImpl
@@ -23,6 +24,7 @@ import com.naaammme.bbspace.core.data.repository.VideoDetailRepoImpl
 import com.naaammme.bbspace.core.data.repository.ListenRepoImpl
 import com.naaammme.bbspace.core.data.repository.VideoPlayerRepoImpl
 import com.naaammme.bbspace.core.domain.auth.AuthRepository
+import com.naaammme.bbspace.core.domain.article.ArticleRecommendRepository
 import com.naaammme.bbspace.core.domain.ImRepository
 import com.naaammme.bbspace.core.domain.listen.ListenRepository
 import com.naaammme.bbspace.core.domain.comment.CommentRepository
@@ -66,6 +68,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAuthRepo(impl: AuthRepoImpl): AuthRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindArticleRecommendRepo(impl: ArticleRecommendRepoImpl): ArticleRecommendRepository
 
     @Binds
     @Singleton

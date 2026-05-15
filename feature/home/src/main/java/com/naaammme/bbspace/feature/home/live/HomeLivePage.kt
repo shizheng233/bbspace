@@ -159,10 +159,6 @@ private fun LiveRecommendCard(
                         )
                     }
                 }
-                val ownerNameClickModifier = remember(spaceRoute) {
-                    if (spaceRoute == null) Modifier
-                    else Modifier.clickable { onOpenSpace(spaceRoute) }
-                }
                 Text(
                     text = item.title,
                     maxLines = 2,
@@ -178,7 +174,11 @@ private fun LiveRecommendCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = ownerNameClickModifier
+                        modifier = if (spaceRoute == null) {
+                            Modifier
+                        } else {
+                            Modifier.clickable { onOpenSpace(spaceRoute) }
+                        }
                     )
                 }
 

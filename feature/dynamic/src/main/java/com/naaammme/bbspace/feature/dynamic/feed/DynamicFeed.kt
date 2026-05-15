@@ -22,10 +22,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.naaammme.bbspace.core.designsystem.component.AvatarImage
@@ -201,14 +199,14 @@ private fun DynamicHeader(
         )
         Column(modifier = Modifier.weight(1f)) {
             val route = item.spaceRoute
-            val nameModifier = remember(route) {
-                if (route == null) Modifier
-                else Modifier.clickable { onOpenSpace(route) }
-            }
             Text(
                 text = item.author?.name ?: "动态",
                 style = MaterialTheme.typography.titleSmall,
-                modifier = nameModifier,
+                modifier = if (route == null) {
+                    Modifier
+                } else {
+                    Modifier.clickable { onOpenSpace(route) }
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -424,7 +422,7 @@ private fun DynamicError(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = if (message.isBlank()) "加载动态失败" else message,
+                text = message.ifBlank { "加载动态失败" },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error
             )

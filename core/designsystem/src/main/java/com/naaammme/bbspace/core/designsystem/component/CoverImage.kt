@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,14 +21,12 @@ fun CoverImage(
     content: (@Composable BoxScope.() -> Unit)? = null
 ) {
     val bgColor = MaterialTheme.colorScheme.surfaceVariant
-    val coverModifier = remember(shape, bgColor) {
-        if (shape == null) {
-            modifier.background(bgColor)
-        } else {
-            modifier
-                .clip(shape)
-                .background(bgColor)
-        }
+    val coverModifier = if (shape == null) {
+        modifier.background(bgColor)
+    } else {
+        modifier
+            .clip(shape)
+            .background(bgColor)
     }
 
     Box(

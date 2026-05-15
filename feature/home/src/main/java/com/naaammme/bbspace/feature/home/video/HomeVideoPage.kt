@@ -183,10 +183,6 @@ private fun FeedCard(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val upNameClickModifier = remember(spaceRoute, isDisliked) {
-                            if (spaceRoute == null || isDisliked) Modifier
-                            else Modifier.clickable { onOpenSpace(spaceRoute) }
-                        }
                         val upName = item.descButton?.text ?: item.args?.upName ?: ""
                         if (upName.isNotEmpty()) {
                             Text(
@@ -197,7 +193,13 @@ private fun FeedCard(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .then(upNameClickModifier)
+                                    .then(
+                                        if (spaceRoute == null || isDisliked) {
+                                            Modifier
+                                        } else {
+                                            Modifier.clickable { onOpenSpace(spaceRoute) }
+                                        }
+                                    )
                             )
                         }
 

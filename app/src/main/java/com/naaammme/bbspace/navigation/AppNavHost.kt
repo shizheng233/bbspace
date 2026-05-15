@@ -1,7 +1,5 @@
 ﻿package com.naaammme.bbspace.navigation
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,7 +19,6 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
@@ -64,7 +61,6 @@ import com.naaammme.bbspace.feature.home.interest.InterestScreen
 import com.naaammme.bbspace.feature.settings.navigation.HOME_INTEREST_ROUTE
 import com.naaammme.bbspace.feature.settings.navigation.SETTINGS_ROUTE
 import com.naaammme.bbspace.feature.settings.navigation.settingsScreen
-import com.naaammme.bbspace.feature.webview.navigation.webViewScreen
 import com.naaammme.bbspace.feature.download.DownloadViewModel
 import com.naaammme.bbspace.feature.user.UserScreen
 import com.naaammme.bbspace.feature.user.UserDest
@@ -145,7 +141,10 @@ fun AppNavHost(themeConfig: ThemeConfig = ThemeConfig()) {
         playbackHostViewModel.close()
         rootNavController.navigateToListenDetail(oid, itemType, subId, title, author, cover)
     }
-    val context = LocalContext.current
+    val openArticle: (String, Int) -> Unit = { opusId, opusType ->
+        playbackHostViewModel.close()
+        rootNavController.navigateToDynamicDetail(opusId, opusType)
+    }
     val transitions = remember(themeConfig.transitionStyle, themeConfig.animationSpeed) {
         buildNavTransitions<NavBackStackEntry>(
             themeConfig.transitionStyle,
@@ -184,6 +183,7 @@ fun AppNavHost(themeConfig: ThemeConfig = ThemeConfig()) {
                     onNavigateToVideo = openVideo,
                     onNavigateToSpace = rootNavController::navigateToSpace,
                     onNavigateToLive = openLive,
+                    onNavigateToArticle = openArticle,
                     onNavigateToDynamicDetail = rootNavController::navigateToDynamicDetail,
                     onNavigateToListenDetail = openListenDetail
                 )
@@ -243,25 +243,6 @@ fun AppNavHost(themeConfig: ThemeConfig = ThemeConfig()) {
                 onBack = { rootNavController.popBackStack() },
                 viewModel = downloadViewModel,
                 closePlaybackHost = closeVideoHost
-            )
-
-            webViewScreen(
-                onBack = { rootNavController.popBackStack() },
-                onOpenVideo = { target ->
-                    rootNavController.popBackStack()
-                    openVideo(target.target)
-                },
-                onOpenSpace = { route ->
-                    rootNavController.popBackStack()
-                    rootNavController.navigateToSpace(route)
-                },
-                onOpenLive = { route ->
-                    rootNavController.popBackStack()
-                    openLive(route)
-                },
-                onOpenExternal = { url ->
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                }
             )
 
             dynamicDetailScreen(
@@ -324,6 +305,7 @@ private fun MainTabsScaffold(
     onNavigateToVideo: (VideoTarget) -> Unit,
     onNavigateToSpace: (SpaceRoute) -> Unit,
     onNavigateToLive: (LiveRoute) -> Unit,
+    onNavigateToArticle: (String, Int) -> Unit,
     onNavigateToDynamicDetail: (String) -> Unit,
     onNavigateToListenDetail: (Long, Int, Long, String, String, String) -> Unit
 ) {
@@ -359,6 +341,7 @@ private fun MainTabsScaffold(
                                 onOpenVideo = onNavigateToVideo,
                                 onOpenSpace = onNavigateToSpace,
                                 onOpenLive = onNavigateToLive,
+                                onOpenArticle = onNavigateToArticle,
                                 onOpenListenItem = onNavigateToListenDetail
                             )
                             TopLevelRoute.DYNAMIC -> DynamicScreen(
