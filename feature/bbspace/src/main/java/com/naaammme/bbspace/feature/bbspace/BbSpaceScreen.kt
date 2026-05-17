@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,7 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naaammme.bbspace.core.designsystem.component.CollapsingTopBarScaffold
+import com.naaammme.bbspace.feature.bbspace.aicucomment.AicuCommentPane
 import com.naaammme.bbspace.feature.bbspace.playback.PlaybackHistoryPane
+import com.naaammme.bbspace.feature.bbspace.relation.RelationCheckPane
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +64,8 @@ fun BbSpaceScreen(
                         text = when (page) {
                             BbSpacePage.HOME -> "bb空间"
                             BbSpacePage.PLAYBACK_HISTORY -> "播放历史"
+                            BbSpacePage.RELATION_CHECK -> "拉黑关系"
+                            BbSpacePage.AICU_COMMENT -> "AICU 评论"
                         }
                     )
                 },
@@ -80,11 +85,29 @@ fun BbSpaceScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding),
-                    onOpenPlaybackHistory = { page = BbSpacePage.PLAYBACK_HISTORY }
+                    onOpenPlaybackHistory = { page = BbSpacePage.PLAYBACK_HISTORY },
+                    onOpenRelationCheck = { page = BbSpacePage.RELATION_CHECK },
+                    onOpenAicuComment = { page = BbSpacePage.AICU_COMMENT }
                 )
             }
             BbSpacePage.PLAYBACK_HISTORY -> {
                 PlaybackHistoryPane(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 16.dp)
+                )
+            }
+            BbSpacePage.RELATION_CHECK -> {
+                RelationCheckPane(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 16.dp)
+                )
+            }
+            BbSpacePage.AICU_COMMENT -> {
+                AicuCommentPane(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
@@ -99,15 +122,34 @@ fun BbSpaceScreen(
 private fun BbSpaceHomePane(
     playbackCount: Int,
     modifier: Modifier = Modifier,
-    onOpenPlaybackHistory: () -> Unit
+    onOpenPlaybackHistory: () -> Unit,
+    onOpenRelationCheck: () -> Unit,
+    onOpenAicuComment: () -> Unit
 ) {
-    Column(modifier = modifier.padding(horizontal = 16.dp)) {
+    Column(
+        modifier = modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         BbSpaceEntryCard(
             title = "播放历史",
             subtitle = "当前有 $playbackCount 条本地记录",
             icon = Icons.Default.DateRange,
             modifier = Modifier.fillMaxWidth(),
             onClick = onOpenPlaybackHistory
+        )
+        BbSpaceEntryCard(
+            title = "查询关系",
+            subtitle = "输入两个 UID 查询 关系",
+            icon = Icons.Default.Person,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onOpenRelationCheck
+        )
+        BbSpaceEntryCard(
+            title = "AICU 评论",
+            subtitle = "输入 UID 查询 AICU 评论",
+            icon = Icons.Default.DateRange,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onOpenAicuComment
         )
     }
 }
@@ -161,5 +203,7 @@ private fun BbSpaceEntryCard(
 
 private enum class BbSpacePage {
     HOME,
-    PLAYBACK_HISTORY
+    PLAYBACK_HISTORY,
+    RELATION_CHECK,
+    AICU_COMMENT
 }
