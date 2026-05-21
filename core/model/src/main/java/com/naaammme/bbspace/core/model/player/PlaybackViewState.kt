@@ -27,6 +27,8 @@ data class PlaybackViewState(
     val speed: Float = 1f,
     val videoWidth: Int = 0,
     val videoHeight: Int = 0,
+    val videoDecoderName: String? = null,
+    val audioDecoderName: String? = null,
     val hasRenderedFirstFrame: Boolean = false,
     val seekEventId: Long = 0L,
     val playerError: String? = null

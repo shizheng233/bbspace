@@ -1,6 +1,7 @@
 package com.naaammme.bbspace.feature.video.player
 
 import android.media.AudioManager
+import android.os.BatteryManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,12 +27,16 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,18 +69,30 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+internal enum class PlayerVideoResizeMode {
+    Fit,
+    Zoom,
+    Fill
+}
+
+internal val LocalVideoResizeModeState = compositionLocalOf<MutableState<PlayerVideoResizeMode>> {
+    error("Missing player video resize mode state")
+}
+
 @Suppress("UnsafeOptInUsageError")
 @UnstableApi
 @Composable
 internal fun VideoPlayerPane(
     modifier: Modifier,
     viewModel: VideoViewModel,
+    videoTitle: String?,
     isFull: Boolean,
     onToggleFull: () -> Unit,
     onBackClick: () -> Unit,
     danmakuOverlayState: DanmakuOverlayState? = null
 ) {
     val context = LocalContext.current
+    val timeFmt = remember(context) { android.text.format.DateFormat.getTimeFormat(context) }
     val state by viewModel.playerState.collectAsStateWithLifecycle()
     val player by viewModel.player.collectAsStateWithLifecycle()
     val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
@@ -89,6 +106,14 @@ internal fun VideoPlayerPane(
     var showPlaybackSheet by remember { mutableStateOf(false) }
     var showCtrl by remember { mutableStateOf(true) }
     var dragMs by remember { mutableStateOf<Long?>(null) }
+    val videoResizeMode = rememberSaveable { mutableStateOf(PlayerVideoResizeMode.Fit) }
+    val topMetaText = remember(showCtrl, isFull, context, timeFmt) {
+        if (showCtrl && isFull) {
+            readPlayerTopMetaText(context, timeFmt)
+        } else {
+            null
+        }
+    }
     var speedBeforeGesture by remember { mutableFloatStateOf(1f) }
     val audioManager = remember(context) { context.getSystemService(AudioManager::class.java) }
     var lastGestureBrightness by remember { mutableFloatStateOf(Float.NaN) }
@@ -130,6 +155,17 @@ internal fun VideoPlayerPane(
         val height = state.currentStream?.height?.takeIf { it > 0 } ?: return@remember null
         width.toFloat() / height.toFloat()
     }
+    val resizeMode = remember(isFull, videoResizeMode.value) {
+        if (!isFull) {
+            AspectRatioFrameLayout.RESIZE_MODE_FIT
+        } else {
+            when (videoResizeMode.value) {
+                PlayerVideoResizeMode.Fit -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                PlayerVideoResizeMode.Zoom -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                PlayerVideoResizeMode.Fill -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            }
+        }
+    }
     val playerView = remember(context) {
         PlayerView(context).apply {
             useController = false
@@ -156,248 +192,290 @@ internal fun VideoPlayerPane(
         }
     }
 
-    Box(
-        modifier = modifier
-            .background(Color.Black)
-    ) {
-        AndroidView(
-            factory = { playerView },
-            update = { view ->
-                val content = view.findViewById<AspectRatioFrameLayout>(Media3UiR.id.exo_content_frame)
-                if (content != null && lastWarmAspect != videoAspect) {
-                    content.setAspectRatio(videoAspect ?: 0f)
-                    lastWarmAspect = videoAspect
-                }
-                PlayerViewTargetBinder.bind(view, player)
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        DanmakuLayer(
-            playerView = playerView,
-            overlayState = danmakuOverlayState,
-            danmakuState = danmakuState,
-            danmakuConfig = settingsState.danmaku,
-            positionMs = state.positionMs,
-            isPlaying = state.isPlaying,
-            speed = state.speed,
-            seekEventId = state.seekEventId,
-            hasSource = state.playbackSource != null,
-            manageLifecycle = externalOverlay == null
-        )
-
-        val act = remember(context) { context.findActivity() }
+    CompositionLocalProvider(LocalVideoResizeModeState provides videoResizeMode) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .videoGestures(
-                    state = gestureState,
-                    onToggleControls = {
-                        showCtrl = !showCtrl
-                    },
-                    onTogglePlay = viewModel::togglePlayPause,
-                    onSeekTo = viewModel::seekTo,
-                    onStartSpeedUp = {
-                        speedBeforeGesture = state.speed
-                        val speed = settingsState.playback.gestureSpeed
-                        viewModel.setSpeed(speed)
-                        formatSpeed(speed)
-                    },
-                    onStopSpeedUp = { viewModel.setSpeed(speedBeforeGesture) },
-                    onBrightnessDelta = { deltaFrac ->
-                        val next = (dragStartBrightness + deltaFrac).coerceIn(0.01f, 1f)
-                        if (abs(next - lastGestureBrightness) >= 0.02f || lastGestureBrightness.isNaN()) {
-                            adjustWindowBrightness(act, next)
-                            lastGestureBrightness = next
+            modifier = modifier
+                .background(Color.Black)
+        ) {
+            AndroidView(
+                factory = { playerView },
+                update = { view ->
+                    val content = view.findViewById<AspectRatioFrameLayout>(Media3UiR.id.exo_content_frame)
+                    if (content != null) {
+                        content.resizeMode = resizeMode
+                        if (lastWarmAspect != videoAspect) {
+                            content.setAspectRatio(videoAspect ?: 0f)
+                            lastWarmAspect = videoAspect
                         }
-                        next
-                    },
-                    onVolumeDelta = { deltaFrac ->
-                        val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 0
-                        if (maxVol <= 0) {
-                            0f
-                        } else {
-                            val next = (dragStartVolumeFrac + deltaFrac).coerceIn(0f, 1f)
-                            if (abs(next - lastGestureVolumeFrac) >= (1f / maxVol.toFloat()) || lastGestureVolumeFrac.isNaN()) {
-                                val newVol = (next * maxVol).roundToInt()
-                                adjustStreamVolume(audioManager, newVol)
-                                lastGestureVolumeFrac = next
+                    }
+                    PlayerViewTargetBinder.bind(view, player)
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            DanmakuLayer(
+                playerView = playerView,
+                overlayState = danmakuOverlayState,
+                danmakuState = danmakuState,
+                danmakuConfig = settingsState.danmaku,
+                positionMs = state.positionMs,
+                isPlaying = state.isPlaying,
+                speed = state.speed,
+                seekEventId = state.seekEventId,
+                hasSource = state.playbackSource != null,
+                manageLifecycle = externalOverlay == null
+            )
+
+            val act = remember(context) { context.findActivity() }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .videoGestures(
+                        state = gestureState,
+                        onToggleControls = {
+                            showCtrl = !showCtrl
+                        },
+                        onTogglePlay = viewModel::togglePlayPause,
+                        onSeekTo = viewModel::seekTo,
+                        onStartSpeedUp = {
+                            speedBeforeGesture = state.speed
+                            val speed = settingsState.playback.gestureSpeed
+                            viewModel.setSpeed(speed)
+                            formatSpeed(speed)
+                        },
+                        onStopSpeedUp = { viewModel.setSpeed(speedBeforeGesture) },
+                        onBrightnessDelta = { deltaFrac ->
+                            val next = (dragStartBrightness + deltaFrac).coerceIn(0.01f, 1f)
+                            if (abs(next - lastGestureBrightness) >= 0.02f || lastGestureBrightness.isNaN()) {
+                                adjustWindowBrightness(act, next)
+                                lastGestureBrightness = next
                             }
                             next
-                        }
-                    },
-                    onDragStart = { dragType ->
-                        when (dragType) {
-                            DragType.Brightness -> {
-                                dragStartBrightness = act?.window?.attributes?.screenBrightness
-                                    ?.takeIf { it in 0f..1f }
-                                    ?.coerceIn(0.01f, 1f)
-                                    ?: 0.5f
-                                lastGestureBrightness = Float.NaN
-                            }
-                            DragType.Volume -> {
-                                val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 0
-                                val curVol = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
-                                dragStartVolumeFrac = if (maxVol > 0) {
-                                    curVol.toFloat() / maxVol.toFloat()
-                                } else {
-                                    0f
+                        },
+                        onVolumeDelta = { deltaFrac ->
+                            val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 0
+                            if (maxVol <= 0) {
+                                0f
+                            } else {
+                                val next = (dragStartVolumeFrac + deltaFrac).coerceIn(0f, 1f)
+                                if (abs(next - lastGestureVolumeFrac) >= (1f / maxVol.toFloat()) || lastGestureVolumeFrac.isNaN()) {
+                                    val newVol = (next * maxVol).roundToInt()
+                                    adjustStreamVolume(audioManager, newVol)
+                                    lastGestureVolumeFrac = next
                                 }
-                                lastGestureVolumeFrac = Float.NaN
+                                next
                             }
-                            else -> {}
-                        }
-                    },
-                    isPlaying = { state.isPlaying },
-                    positionMs = { barMs },
-                    durationMs = { durationMs }
-                )
-        ) {
-            VideoGestureFeedback(gestureState)
-        }
-
-        if (showCtrl) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回",
-                        tint = Color.White
+                        },
+                        onDragStart = { dragType ->
+                            when (dragType) {
+                                DragType.Brightness -> {
+                                    dragStartBrightness = act?.window?.attributes?.screenBrightness
+                                        ?.takeIf { it in 0f..1f }
+                                        ?.coerceIn(0.01f, 1f)
+                                        ?: 0.5f
+                                    lastGestureBrightness = Float.NaN
+                                }
+                                DragType.Volume -> {
+                                    val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 0
+                                    val curVol = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0
+                                    dragStartVolumeFrac = if (maxVol > 0) {
+                                        curVol.toFloat() / maxVol.toFloat()
+                                    } else {
+                                        0f
+                                    }
+                                    lastGestureVolumeFrac = Float.NaN
+                                }
+                                else -> {}
+                            }
+                        },
+                        isPlaying = { state.isPlaying },
+                        positionMs = { barMs },
+                        durationMs = { durationMs }
                     )
-                }
+            ) {
+                VideoGestureFeedback(gestureState)
+            }
+
+            if (showCtrl) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (danmakuOn) "弹幕" else "弹幕关",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White,
-                        modifier = Modifier
-                            .clickable {
-                                showCtrl = true
-                                viewModel.updateDanmaku(
-                                    settingsState.danmaku.copy(enabled = !settingsState.danmaku.enabled)
-                                )
-                            }
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                    IconButton(
-                        onClick = {
-                            showCtrl = true
-                            showPlaybackSheet = true
-                        }
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "更多信息",
-                            tint = Color.White
+                        IconButton(onClick = onBackClick) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回",
+                                tint = Color.White
+                            )
+                        }
+                        if (isFull) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                videoTitle?.takeIf(String::isNotBlank)?.let {
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                topMetaText?.let {
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (danmakuOn) "弹幕" else "弹幕关",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.White,
+                            modifier = Modifier
+                                .clickable {
+                                    showCtrl = true
+                                    viewModel.updateDanmaku(
+                                        settingsState.danmaku.copy(enabled = !settingsState.danmaku.enabled)
+                                    )
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                         )
+                        IconButton(
+                            onClick = {
+                                showCtrl = true
+                                showPlaybackSheet = true
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "更多信息",
+                                tint = Color.White
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        if (showCtrl) {
-            PlayerCtrlBar(
-                playText = if (state.isPlaying) "暂停" else "播放",
-                timeText = formatPlaybackTime(barMs, durationMs),
-                audioText = state.currentAudio?.let { getAudioName(it.id, short = true) } ?: "音频",
-                qualityText = getQualityName(state.playbackSource, state.currentStream),
-                speedText = formatSpeed(state.speed),
-                fullText = if (isFull) "还原" else "全屏",
-                sliderVal = sliderVal,
-                sliderOn = durationMs > 0,
-                audioOn = (state.playbackSource?.audios?.size ?: 0) > 1,
-                qualityOn = (state.playbackSource?.qualityOptions?.size ?: 0) > 1,
-                onTogglePlay = viewModel::togglePlayPause,
-                onAudioClick = {
-                    showCtrl = true
-                    showA = true
-                },
-                onQualityClick = {
-                    showCtrl = true
-                    showQ = true
-                },
-                onSpeedClick = {
-                    showCtrl = true
-                    showSp = true
-                },
-                onFullClick = {
-                    showCtrl = true
-                    onToggleFull()
-                },
-                onSeekChange = { frac ->
-                    showCtrl = true
-                    dragMs = (durationMs * frac).toLong()
-                },
-                onSeekDone = {
-                    val next = dragMs ?: return@PlayerCtrlBar
-                    viewModel.seekTo(next)
-                    dragMs = null
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 6.dp, vertical = 4.dp)
-            )
-        }
-    }
-
-    if (showQ) {
-        val src = state.playbackSource
-        if (src != null) {
-            QualitySelectionDialog(
-                options = src.qualityOptions,
-                curQuality = state.currentStream?.quality,
-                onDismiss = { showQ = false },
-                onSelect = { quality ->
-                    viewModel.switchQuality(quality)
-                    showQ = false
-                }
-            )
-        }
-    }
-
-    if (showA) {
-        val src = state.playbackSource
-        if (src != null) {
-            AudioSelectionDialog(
-                audios = src.audios,
-                curAudioId = state.currentAudio?.id,
-                onDismiss = { showA = false },
-                onSelect = { audioId ->
-                    viewModel.switchAudio(audioId)
-                    showA = false
-                }
-            )
-        }
-    }
-
-    if (showSp) {
-        SpeedSelectionDialog(
-            curSpeed = state.speed,
-            onDismiss = { showSp = false },
-            onSelect = { speed ->
-                viewModel.setSpeed(speed)
-                showSp = false
+            if (showCtrl) {
+                PlayerCtrlBar(
+                    playText = if (state.isPlaying) "暂停" else "播放",
+                    timeText = formatPlaybackTime(barMs, durationMs),
+                    audioText = state.currentAudio?.let { getAudioName(it.id, short = true) } ?: "音频",
+                    qualityText = getQualityName(state.playbackSource, state.currentStream),
+                    speedText = formatSpeed(state.speed),
+                    fullText = if (isFull) "还原" else "全屏",
+                    sliderVal = sliderVal,
+                    sliderOn = durationMs > 0,
+                    audioOn = (state.playbackSource?.audios?.size ?: 0) > 1,
+                    qualityOn = (state.playbackSource?.qualityOptions?.size ?: 0) > 1,
+                    onTogglePlay = viewModel::togglePlayPause,
+                    onAudioClick = {
+                        showCtrl = true
+                        showA = true
+                    },
+                    onQualityClick = {
+                        showCtrl = true
+                        showQ = true
+                    },
+                    onSpeedClick = {
+                        showCtrl = true
+                        showSp = true
+                    },
+                    onFullClick = {
+                        showCtrl = true
+                        onToggleFull()
+                    },
+                    onSeekChange = { frac ->
+                        showCtrl = true
+                        dragMs = (durationMs * frac).toLong()
+                    },
+                    onSeekDone = {
+                        val next = dragMs ?: return@PlayerCtrlBar
+                        viewModel.seekTo(next)
+                        dragMs = null
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                )
             }
-        )
-    }
 
-    if (showPlaybackSheet) {
-        VideoPlaybackSheet(
-            state = state,
-            viewModel = viewModel,
-            limitUnderPlayer = !isFull,
-            onDismiss = { showPlaybackSheet = false }
-        )
+            if (isFull && showPlaybackSheet) {
+                VideoPlaybackSidebar(
+                    state = state,
+                    viewModel = viewModel,
+                    onDismiss = { showPlaybackSheet = false },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxSize()
+                )
+            }
+        }
+
+        if (showQ) {
+            val src = state.playbackSource
+            if (src != null) {
+                QualitySelectionDialog(
+                    options = src.qualityOptions,
+                    curQuality = state.currentStream?.quality,
+                    onDismiss = { showQ = false },
+                    onSelect = { quality ->
+                        viewModel.switchQuality(quality)
+                        showQ = false
+                    }
+                )
+            }
+        }
+
+        if (showA) {
+            val src = state.playbackSource
+            if (src != null) {
+                AudioSelectionDialog(
+                    audios = src.audios,
+                    curAudioId = state.currentAudio?.id,
+                    onDismiss = { showA = false },
+                    onSelect = { audioId ->
+                        viewModel.switchAudio(audioId)
+                        showA = false
+                    }
+                )
+            }
+        }
+
+        if (showSp) {
+            SpeedSelectionDialog(
+                curSpeed = state.speed,
+                onDismiss = { showSp = false },
+                onSelect = { speed ->
+                    viewModel.setSpeed(speed)
+                    showSp = false
+                }
+            )
+        }
+
+        if (!isFull && showPlaybackSheet) {
+            VideoPlaybackSheet(
+                state = state,
+                viewModel = viewModel,
+                limitUnderPlayer = true,
+                onDismiss = { showPlaybackSheet = false }
+            )
+        }
     }
 }
 
@@ -659,5 +737,16 @@ private fun SpeedSelectionDialog(
             }
         }
     )
+}
+
+private fun readPlayerTopMetaText(
+    context: android.content.Context,
+    timeFmt: java.text.DateFormat
+): String {
+    val time = timeFmt.format(System.currentTimeMillis())
+    val battery = context.getSystemService(BatteryManager::class.java)
+        ?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        ?.takeIf { it in 0..100 }
+    return if (battery != null) "$time  ${battery}%" else time
 }
 

@@ -2,16 +2,21 @@ package com.naaammme.bbspace.feature.video.player
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,7 +31,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,7 +43,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naaammme.bbspace.core.designsystem.component.DanmakuSettingsSection
 import com.naaammme.bbspace.core.model.PlaybackError
 import com.naaammme.bbspace.core.model.PlayerBufferProfile
-import com.naaammme.bbspace.core.model.PlaybackState
 import com.naaammme.bbspace.core.model.PlaybackViewState
 import com.naaammme.bbspace.core.model.PlayerSettingsState
 import com.naaammme.bbspace.core.model.buildPlaybackCdns
@@ -91,7 +94,12 @@ internal fun VideoPlaybackSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState
     ) {
-        Column(
+        VideoPlaybackPanelContent(
+            state = state,
+            settingsState = settingsState,
+            viewModel = viewModel,
+            section = section,
+            onSectionChange = { section = it },
             modifier = Modifier
                 .fillMaxWidth()
                 .then(
@@ -101,39 +109,93 @@ internal fun VideoPlaybackSheet(
                         Modifier
                     }
                 )
-                .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                PlaybackSheetSection.entries.forEach { item ->
-                    FilterChip(
-                        selected = item == section,
-                        onClick = { section = item },
-                        label = { Text(item.title) }
-                    )
-                }
-            }
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+    }
+}
 
-            when (section) {
-                PlaybackSheetSection.Info -> PlayerInfoSection(state)
-                PlaybackSheetSection.Playback -> PlaybackSettingsSection(
+@Composable
+internal fun VideoPlaybackSidebar(
+    state: PlaybackViewState,
+    viewModel: VideoViewModel,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
+    var section by rememberSaveable { mutableStateOf(PlaybackSheetSection.Playback) }
+
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val panelWidth = (maxWidth * 0.42f).coerceIn(240.dp, 360.dp)
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable(onClick = onDismiss)
+            )
+            Card(
+                modifier = Modifier
+                    .width(panelWidth)
+                    .fillMaxHeight()
+            ) {
+                VideoPlaybackPanelContent(
                     state = state,
                     settingsState = settingsState,
-                    viewModel = viewModel
-                )
-
-                PlaybackSheetSection.Danmaku -> DanmakuSettingsSection(
-                    config = settingsState.danmaku,
-                    onConfigChange = viewModel::updateDanmaku
+                    viewModel = viewModel,
+                    section = section,
+                    onSectionChange = { section = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun VideoPlaybackPanelContent(
+    state: PlaybackViewState,
+    settingsState: PlayerSettingsState,
+    viewModel: VideoViewModel,
+    section: PlaybackSheetSection,
+    onSectionChange: (PlaybackSheetSection) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            PlaybackSheetSection.entries.forEach { item ->
+                FilterChip(
+                    selected = item == section,
+                    onClick = { onSectionChange(item) },
+                    label = { Text(item.title) }
+                )
+            }
+        }
+
+        when (section) {
+            PlaybackSheetSection.Info -> PlayerInfoSection(state)
+            PlaybackSheetSection.Playback -> PlaybackSettingsSection(
+                state = state,
+                settingsState = settingsState,
+                viewModel = viewModel
+            )
+
+            PlaybackSheetSection.Danmaku -> DanmakuSettingsSection(
+                config = settingsState.danmaku,
+                onConfigChange = viewModel::updateDanmaku
+            )
         }
     }
 }
@@ -144,6 +206,7 @@ private fun PlaybackSettingsSection(
     settingsState: PlayerSettingsState,
     viewModel: VideoViewModel
 ) {
+    val videoResizeModeState = LocalVideoResizeModeState.current
     SheetSectionTitle("播放设置")
 
     val cdnOps = buildCdnOps(state.currentStream, state.currentAudio)
@@ -173,6 +236,15 @@ private fun PlaybackSettingsSection(
         currentValue = settingsState.playback.gestureSpeed,
         options = speedOps,
         onSelect = viewModel::updateGestureSpeed
+    )
+
+    SheetChoiceCard(
+        title = "全屏视频大小",
+        subtitle = "调整画面尺寸",
+        currentValue = videoResizeModeState.value.ordinal,
+        options = PlayerVideoResizeMode.entries.indices.toList(),
+        label = { videoResizeModeText(PlayerVideoResizeMode.entries[it]) },
+        onSelect = { videoResizeModeState.value = PlayerVideoResizeMode.entries[it] }
     )
 
     SheetSwitchCard(
@@ -286,13 +358,10 @@ private fun PlayerInfoSection(state: PlaybackViewState) {
     }
 
     SheetInfoGroup(
-        title = "播放状态",
+        title = "解码器",
         rows = listOf(
-            "状态" to playbackStateText(state),
-            "播放位置" to formatDuration(state.positionMs),
-            "缓冲位置" to formatDuration(state.bufferedPositionMs),
-            "缓冲时长" to formatDuration(state.totalBufferedDurationMs),
-            "播放速度" to formatSpeed(state.speed)
+            "视频解码器" to (state.videoDecoderName ?: "未知"),
+            "音频解码器" to (state.audioDecoderName ?: "未知")
         )
     )
 }
@@ -494,16 +563,11 @@ private fun bufferProfileText(value: PlayerBufferProfile): String {
     }
 }
 
-private fun playbackStateText(state: PlaybackViewState): String {
-    return when {
-        state.isPlaying -> "播放中"
-        state.isPreparing -> "准备中"
-        else -> when (state.playbackState) {
-            PlaybackState.Buffering -> "缓冲中"
-            PlaybackState.Ready -> "已暂停"
-            PlaybackState.Ended -> "已结束"
-            PlaybackState.Idle -> "未开始"
-        }
+private fun videoResizeModeText(value: PlayerVideoResizeMode): String {
+    return when (value) {
+        PlayerVideoResizeMode.Fit -> "适应"
+        PlayerVideoResizeMode.Zoom -> "裁剪铺满"
+        PlayerVideoResizeMode.Fill -> "拉伸铺满"
     }
 }
 

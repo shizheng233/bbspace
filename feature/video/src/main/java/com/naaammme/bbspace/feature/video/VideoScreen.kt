@@ -224,6 +224,7 @@ fun VideoScreen(
             VideoPlayerPane(
                 modifier = playerPaneMod,
                 viewModel = viewModel,
+                videoTitle = pageState.detail?.title,
                 isFull = fullOn,
                 onToggleFull = { isFull = !isFull },
                 onBackClick = handleBack,

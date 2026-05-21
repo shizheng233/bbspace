@@ -677,6 +677,8 @@ class StreamPlaybackSessionImpl @Inject constructor(
             speed = snapshot.speed,
             videoWidth = snapshot.videoWidth,
             videoHeight = snapshot.videoHeight,
+            videoDecoderName = snapshot.videoDecoderName,
+            audioDecoderName = snapshot.audioDecoderName,
             hasRenderedFirstFrame = snapshot.firstFrameSeq > 0L,
             seekEventId = if (isNewSeekEvent) prev.seekEventId + 1L else prev.seekEventId,
             playerError = snapshot.errorMessage
