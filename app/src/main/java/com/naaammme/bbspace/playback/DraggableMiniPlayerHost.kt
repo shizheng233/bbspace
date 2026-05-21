@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private val miniPlayerWidth = 220.dp
+private val miniPlayerWidth = 192.dp
 private const val miniPlayerAspectRatio = 16f / 9f
 private val miniPlayerStashPeek = 28.dp
 private const val miniPlayerStashTriggerFraction = 0.5f

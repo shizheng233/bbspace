@@ -13,8 +13,6 @@ import com.naaammme.bbspace.core.model.LiveRouteTool
 import com.naaammme.bbspace.infra.network.BiliRestClient
 import com.naaammme.bbspace.infra.network.BiliRestParamBuilder
 import com.naaammme.bbspace.infra.network.BiliRestProfile
-import java.net.URI
-import java.net.URLDecoder
 import javax.inject.Inject
 import javax.inject.Singleton
 import org.json.JSONArray
@@ -108,12 +106,7 @@ class LiveRecommendRepoImpl @Inject constructor(
     }
 
     private fun parseItem(card: JSONObject): LiveRecommendItem? {
-        val roomId = card.optLong("id").takeIf { it > 0L }
-            ?: parseRoomId(card.optString("link"))
-            ?: return null
-        val link = card.optString("link")
-        val jumpFrom = parseQueryInt(link, "live_from")
-            ?: LiveRouteTool.JUMP_FROM_LIVE_RECOMMEND
+        val roomId = card.optLong("id").takeIf { it > 0L } ?: return null
         val cover = card.optString("cover")
             .ifBlank { card.optString("system_cover") }
             .replace("http://", "https://")
@@ -152,47 +145,9 @@ class LiveRecommendRepoImpl @Inject constructor(
                 cover = cover.takeIf { it.isNotBlank() },
                 ownerName = ownerName,
                 onlineText = onlineText,
-                jumpFrom = jumpFrom
+                jumpFrom = LiveRouteTool.JUMP_FROM_LIVE_RECOMMEND
             )
         )
-    }
-
-    private fun parseRoomId(link: String): Long? {
-        if (link.isBlank()) return null
-        return runCatching {
-            URI(link).path
-                .orEmpty()
-                .trimEnd('/')
-                .substringAfterLast('/')
-                .toLongOrNull()
-        }.getOrNull()
-    }
-
-    private fun parseQueryInt(
-        link: String,
-        key: String
-    ): Int? {
-        val value = parseQueryValue(link, key) ?: return null
-        return value.toIntOrNull()
-    }
-
-    private fun parseQueryValue(
-        link: String,
-        key: String
-    ): String? {
-        if (link.isBlank()) return null
-        val rawQuery = runCatching { URI(link).rawQuery }.getOrNull() ?: return null
-        if (rawQuery.isBlank()) return null
-        return rawQuery.split('&')
-            .asSequence()
-            .mapNotNull { part ->
-                val idx = part.indexOf('=')
-                if (idx <= 0) return@mapNotNull null
-                val name = part.substring(0, idx)
-                if (name != key) return@mapNotNull null
-                URLDecoder.decode(part.substring(idx + 1), Charsets.UTF_8.name())
-            }
-            .firstOrNull()
     }
 
     private fun JSONArray?.toUpItems(): List<LiveRecommendUpItem> {

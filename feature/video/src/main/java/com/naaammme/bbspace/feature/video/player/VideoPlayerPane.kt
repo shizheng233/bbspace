@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -634,8 +636,8 @@ private fun QualitySelectionDialog(
         onDismissRequest = onDismiss,
         title = { Text("选择画质") },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                options.forEach { option ->
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(options, key = { it.quality }) { option ->
                     QualityOptionItem(
                         option = option,
                         isSelected = option.quality == curQuality,
@@ -663,8 +665,8 @@ private fun AudioSelectionDialog(
         onDismissRequest = onDismiss,
         title = { Text("选择音频") },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                audios.forEach { audio ->
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(audios, key = { it.id }) { audio ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -706,8 +708,8 @@ private fun SpeedSelectionDialog(
         onDismissRequest = onDismiss,
         title = { Text("播放速度") },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                speedOps.forEach { speed ->
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(speedOps, key = { it }) { speed ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
