@@ -40,6 +40,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -80,6 +83,7 @@ internal fun LivePlayerPane(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val owner = LocalLifecycleOwner.current
     val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
     val tapSrc = remember { MutableInteractionSource() }
     var showCtrl by remember { mutableStateOf(true) }
@@ -156,8 +160,21 @@ internal fun LivePlayerPane(
         }
     }
 
-    DisposableEffect(playerView) {
+    DisposableEffect(owner, playerView, player) {
+        val lifecycle = owner.lifecycle
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            PlayerViewTargetBinder.bind(playerView, player)
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> PlayerViewTargetBinder.bind(playerView, player)
+                Lifecycle.Event.ON_STOP -> PlayerViewTargetBinder.unbind(playerView)
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
         onDispose {
+            lifecycle.removeObserver(observer)
             PlayerViewTargetBinder.unbind(playerView)
         }
     }
@@ -169,7 +186,6 @@ internal fun LivePlayerPane(
         AndroidView(
             factory = { playerView },
             update = { view ->
-                PlayerViewTargetBinder.bind(view, player)
                 view.keepScreenOn = playbackState.playWhenReady
             },
             modifier = Modifier.fillMaxSize()

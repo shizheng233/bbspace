@@ -128,7 +128,8 @@ fun AppNavHost(
         rootNavController.navigateToSpace(route)
     }
     val openDownloadFromVideo: () -> Unit = {
-        closeVideoHost()
+        collapseExpandedPlayback()
+        dismissPlaybackHost()
         rootNavController.navigateToDownload()
     }
     val openVideo: (VideoTarget) -> Unit = { target ->

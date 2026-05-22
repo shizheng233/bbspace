@@ -259,11 +259,7 @@ class Media3PlayerEngine @Inject constructor(
                 DecoderMode.Hard -> {
                     val infos = MediaCodecSelector.DEFAULT
                         .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
-                    if (mimeType.startsWith("video/")) {
-                        infos.sortedBy { it.softwareOnly }
-                    } else {
-                        infos
-                    }
+                    infos.sortedBy { it.softwareOnly }
                 }
 
                 DecoderMode.Soft -> MediaCodecSelector.PREFER_SOFTWARE
